@@ -3,9 +3,7 @@ export enum ActionType {
   LAUNCH_APP = 'LAUNCH_APP',
   OPEN_URL = 'OPEN_URL',
   COMMAND = 'COMMAND',
-  MACRO = 'MACRO',
-  KEY_COMBINATION = 'KEY_COMBINATION',
-  MOTION_REPLAY = 'MOTION_REPLAY'
+  MACRO = 'MACRO'
 }
 
 export interface AutomationStep {
@@ -29,13 +27,11 @@ export interface DashboardPage {
   buttons: ControlButton[];
 }
 
-export type ConnectionStatus = 'connected' | 'disconnected' | 'connecting';
-
 export interface AppState {
   currentPageId: string;
   pages: DashboardPage[];
   isEditMode: boolean;
   isExecuting: boolean;
   pcIpAddress: string;
-  connectionStatus: ConnectionStatus;
+  connectionStatus: 'online' | 'offline' | 'checking';
 }
