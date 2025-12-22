@@ -3,14 +3,18 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { ActionType, AutomationStep } from "../types";
 
 export const generateMacro = async (prompt: string): Promise<AutomationStep[]> => {
-  // API Key'e her zaman fonksiyon içinden erişerek top-level çökmesini engelle
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  if (!process.env.API_KEY) {
+    console.error("API_KEY bulunamadı.");
+    return [];
+  }
+
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Bir PC kumanda uygulaması için şu isteği JSON adımlara dök: "${prompt}". 
-      Örnek: "Chrome aç youtube.com git" -> [{id: "1", type: "OPEN_URL", value: "https://youtube.com", description: "Youtube aç"}]`,
+      contents: `Bilgisayar otomasyonu için şu isteği JSON adımlara dönüştür: "${prompt}".
+      Uygulama isimlerini (chrome, steam, spotify) ve URL'leri kullan.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
