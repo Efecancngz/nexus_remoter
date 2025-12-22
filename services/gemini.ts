@@ -3,12 +3,8 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { ActionType, AutomationStep } from "../types";
 
 export const generateMacro = async (prompt: string): Promise<AutomationStep[]> => {
-  if (!process.env.API_KEY) {
-    console.error("API_KEY bulunamadı.");
-    return [];
-  }
-
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // Instance her çağrıda taze olarak oluşturulur
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
   
   try {
     const response = await ai.models.generateContent({
@@ -33,7 +29,8 @@ export const generateMacro = async (prompt: string): Promise<AutomationStep[]> =
       }
     });
 
-    return JSON.parse(response.text || '[]');
+    const text = response.text;
+    return text ? JSON.parse(text) : [];
   } catch (err) {
     console.error("AI Hatası:", err);
     return [];
