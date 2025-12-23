@@ -4,12 +4,17 @@ import { ActionType, AutomationStep } from "../types";
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-export const generateMacro = async (prompt: string, retryCount = 0): Promise<AutomationStep[]> => {
+export const generateMacro = async (
+  prompt: string, 
+  retryCount = 0, 
+  onRetry?: (count: number, waitTime: number) => void
+): Promise<AutomationStep[]> => {
   const apiKey = process.env.API_KEY;
   if (!apiKey) return [];
 
+  // SDK örneğini her denemede tazelemek bazen bağlantı sorunlarını çözer
   const ai = new GoogleGenAI({ apiKey });
-  const modelName = 'gemini-3-flash-preview'; // En yüksek kotalı stabil model
+  const modelName = 'gemini-3-flash-preview'; 
 
   const systemInstruction = `Sen NEXUS AI asistanısın. 
   Görevin: Kullanıcı isteğini bilgisayar otomasyon adımlarına çevirmek.
@@ -56,23 +61,27 @@ export const generateMacro = async (prompt: string, retryCount = 0): Promise<Aut
     })) : [];
 
   } catch (err: any) {
-    console.error(`NEXUS AI ERROR (Deneme ${retryCount + 1}):`, err);
-    
-    // 429 Hatası veya Kota Sınırı Durumu
+    // 429 (Too Many Requests) veya Quota (Kota) hatası kontrolü
     const isRateLimit = err.status === 429 || err.message?.includes("429") || err.message?.includes("quota");
     
+    // Maksimum 3 kere dene
     if (isRateLimit && retryCount < 3) {
-      // Üstel bekleme: 2s, 4s, 8s bekle ve tekrar dene
+      // Üstel bekleme (Exponential Backoff): 2s, 4s, 8s
       const waitTime = Math.pow(2, retryCount + 1) * 1000;
-      console.warn(`${waitTime}ms sonra tekrar deneniyor...`);
+      
+      // UI'a bilgi gönder
+      if (onRetry) onRetry(retryCount + 1, waitTime);
+      
+      console.warn(`[NEXUS AI] 429 Alındı. Deneme: ${retryCount + 1}. Bekleme: ${waitTime}ms`);
+      
       await sleep(waitTime);
-      return generateMacro(prompt, retryCount + 1);
+      return generateMacro(prompt, retryCount + 1, onRetry);
     }
     
     if (isRateLimit) {
-      throw new Error("Google API kotası kalıcı olarak doldu. Lütfen 1 dakika bekleyin.");
+      throw new Error("Google API sınırı aşıldı. Lütfen 30-60 saniye bekleyin.");
     }
     
-    throw new Error("AI şu an yanıt veremiyor. İnternet bağlantınızı kontrol edin.");
+    throw new Error(err.message || "AI yanıt veremedi.");
   }
 };

@@ -41,6 +41,7 @@ export default function App() {
   const [editingBtn, setEditingBtn] = useState<ControlButton | null>(null);
   const [aiPrompt, setAiPrompt] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiStatus, setAiStatus] = useState<string | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
   const [showIpModal, setShowIpModal] = useState(false);
 
@@ -85,10 +86,14 @@ export default function App() {
     if (!promptValue || !editingBtn) return;
 
     setIsAiLoading(true);
+    setAiStatus("Zekâ işleniyor...");
     setLastError(null);
     
     try {
-      const newSteps = await generateMacro(promptValue);
+      const newSteps = await generateMacro(promptValue, 0, (attempt, wait) => {
+        setAiStatus(`Yoğunluk var. ${attempt}. deneme ${wait/1000}sn sonra...`);
+      });
+      
       if (newSteps && newSteps.length > 0) {
         setEditingBtn(prev => {
           if (!prev) return null;
@@ -105,6 +110,7 @@ export default function App() {
       setLastError(e.message);
     } finally {
       setIsAiLoading(false);
+      setAiStatus(null);
     }
   };
 
@@ -200,7 +206,7 @@ export default function App() {
                 <div className="flex items-center gap-2 text-cyan-400">
                   <Sparkles size={18} className={isAiLoading ? "animate-spin" : "animate-pulse"} />
                   <span className="text-[10px] font-black uppercase tracking-widest">
-                    {isAiLoading ? "AI Çalışıyor (Hata Olursa Tekrar Deneyecek)..." : "Akıllı Komut (Gemini AI)"}
+                    {aiStatus || "Akıllı Komut (Gemini AI)"}
                   </span>
                 </div>
                 <div className="flex gap-3">
