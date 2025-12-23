@@ -3,7 +3,9 @@ export enum ActionType {
   LAUNCH_APP = 'LAUNCH_APP',
   OPEN_URL = 'OPEN_URL',
   COMMAND = 'COMMAND',
-  MACRO = 'MACRO'
+  MACRO = 'MACRO',
+  WAIT = 'WAIT',
+  KEYPRESS = 'KEYPRESS'
 }
 
 export interface AutomationStep {
@@ -40,6 +42,6 @@ export interface AppState {
   isEditMode: boolean;
   isExecuting: boolean;
   pcIpAddress: string;
-  connectionStatus: 'online' | 'offline' | 'checking';
+  connectionStatus: 'online' | 'offline' | 'checking' | 'connected' | 'disconnected' | 'connecting';
   lastExecutedAction?: string;
 }
