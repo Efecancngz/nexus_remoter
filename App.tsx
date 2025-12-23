@@ -198,8 +198,10 @@ export default function App() {
 
               <div className="bg-cyan-500/5 border border-cyan-500/20 p-6 rounded-[2.5rem] space-y-4">
                 <div className="flex items-center gap-2 text-cyan-400">
-                  <Sparkles size={18} className="animate-pulse" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Akıllı Komut (Gemini AI)</span>
+                  <Sparkles size={18} className={isAiLoading ? "animate-spin" : "animate-pulse"} />
+                  <span className="text-[10px] font-black uppercase tracking-widest">
+                    {isAiLoading ? "AI Çalışıyor (Hata Olursa Tekrar Deneyecek)..." : "Akıllı Komut (Gemini AI)"}
+                  </span>
                 </div>
                 <div className="flex gap-3">
                   <textarea 

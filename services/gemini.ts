@@ -2,13 +2,14 @@
 import { GoogleGenAI, Type, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { ActionType, AutomationStep } from "../types";
 
-export const generateMacro = async (prompt: string): Promise<AutomationStep[]> => {
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+export const generateMacro = async (prompt: string, retryCount = 0): Promise<AutomationStep[]> => {
   const apiKey = process.env.API_KEY;
   if (!apiKey) return [];
 
-  // Gemini 3 Flash Preview: En hızlı ve en yüksek kotalı model
   const ai = new GoogleGenAI({ apiKey });
-  const modelName = 'gemini-3-flash-preview';
+  const modelName = 'gemini-3-flash-preview'; // En yüksek kotalı stabil model
 
   const systemInstruction = `Sen NEXUS AI asistanısın. 
   Görevin: Kullanıcı isteğini bilgisayar otomasyon adımlarına çevirmek.
@@ -22,7 +23,7 @@ export const generateMacro = async (prompt: string): Promise<AutomationStep[]> =
       config: {
         systemInstruction,
         responseMimeType: "application/json",
-        thinkingConfig: { thinkingBudget: 0 }, // Token tasarrufu ve hız için kapalı
+        thinkingConfig: { thinkingBudget: 0 },
         safetySettings: [
           { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
           { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -55,14 +56,23 @@ export const generateMacro = async (prompt: string): Promise<AutomationStep[]> =
     })) : [];
 
   } catch (err: any) {
-    console.error("NEXUS AI ERROR:", err);
+    console.error(`NEXUS AI ERROR (Deneme ${retryCount + 1}):`, err);
     
-    // 429 hatası genellikle "Rate Limit" yani istek sayısı sınırıdır
-    if (err.status === 429 || err.message?.includes("429")) {
-      throw new Error("Dakikalık AI isteği sınırına ulaşıldı. Lütfen 20 saniye bekleyip tekrar deneyin.");
+    // 429 Hatası veya Kota Sınırı Durumu
+    const isRateLimit = err.status === 429 || err.message?.includes("429") || err.message?.includes("quota");
+    
+    if (isRateLimit && retryCount < 3) {
+      // Üstel bekleme: 2s, 4s, 8s bekle ve tekrar dene
+      const waitTime = Math.pow(2, retryCount + 1) * 1000;
+      console.warn(`${waitTime}ms sonra tekrar deneniyor...`);
+      await sleep(waitTime);
+      return generateMacro(prompt, retryCount + 1);
     }
     
-    // Diğer hatalar (örn: internet yok veya API key geçersiz)
-    throw new Error("AI şu an yanıt veremiyor. Lütfen bağlantınızı kontrol edin.");
+    if (isRateLimit) {
+      throw new Error("Google API kotası kalıcı olarak doldu. Lütfen 1 dakika bekleyin.");
+    }
+    
+    throw new Error("AI şu an yanıt veremiyor. İnternet bağlantınızı kontrol edin.");
   }
 };
