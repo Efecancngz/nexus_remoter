@@ -6,36 +6,10 @@ import { generateMacro } from './services/gemini';
 import { 
   Settings, Plus, Trash2, Cpu, Globe, 
   Gamepad2, Sparkles, X, Save, AlertCircle, 
-  RefreshCw, Power, Edit3, ArrowRight, Info, Clock, Keyboard,
-  Music, Youtube
+  RefreshCw, Power, Edit3, ArrowRight, Music, Youtube, Keyboard
 } from 'lucide-react';
 
-const STORAGE_KEY = 'nexus_remote_v7';
-
-const DEFAULT_PAGE: DashboardPage = {
-  id: 'main',
-  name: 'Nexus Remote',
-  buttons: [
-    { 
-      id: '1', 
-      label: 'YouTube Shorts', 
-      color: 'bg-red-600', 
-      icon: 'YOUTUBE', 
-      steps: [{ id: 's1', type: ActionType.OPEN_URL, value: 'https://youtube.com/shorts', description: 'YouTube Shorts açılıyor' }] 
-    },
-    { 
-      id: '2', 
-      label: 'Spotify: Chill', 
-      color: 'bg-green-600', 
-      icon: 'MUSIC', 
-      steps: [
-        { id: 's2', type: ActionType.COMMAND, value: 'start spotify:search:lofi', description: 'Spotify lofi araması' },
-        { id: 's3', type: ActionType.WAIT, value: '3000', description: 'Uygulama bekleniyor' },
-        { id: 's4', type: ActionType.KEYPRESS, value: 'enter', description: 'Oynatılıyor' }
-      ] 
-    }
-  ]
-};
+const STORAGE_KEY = 'nexus_remote_v8';
 
 export default function App() {
   const [state, setState] = useState<AppState>(() => {
@@ -44,11 +18,18 @@ export default function App() {
       try {
         const parsed = JSON.parse(saved);
         return { ...parsed, isExecuting: false, connectionStatus: 'offline' };
-      } catch (e) { console.error("Load error", e); }
+      } catch (e) { console.error(e); }
     }
     return {
       currentPageId: 'main',
-      pages: [DEFAULT_PAGE],
+      pages: [{
+        id: 'main',
+        name: 'Nexus Remote',
+        buttons: [
+          { id: '1', label: 'Spotify', color: 'bg-green-600', icon: 'MUSIC', steps: [{ id: 's1', type: ActionType.COMMAND, value: 'start spotify:', description: 'Spotify başlatılıyor' }] },
+          { id: '2', label: 'Youtube', color: 'bg-red-600', icon: 'YOUTUBE', steps: [{ id: 's2', type: ActionType.OPEN_URL, value: 'https://youtube.com', description: 'Youtube açılıyor' }] }
+        ]
+      }],
       macros: [],
       isEditMode: false,
       isExecuting: false,
@@ -80,11 +61,10 @@ export default function App() {
 
   const handleButtonClick = async (btn: ControlButton) => {
     if (state.isEditMode) {
-      setEditingBtn({ ...btn, steps: [...btn.steps] });
+      setEditingBtn(JSON.parse(JSON.stringify(btn)));
       return;
     }
-    if (btn.steps.length === 0) return;
-    
+    if (!btn.steps.length) return;
     setLastError(null);
     setState(s => ({ ...s, isExecuting: true, lastExecutedAction: btn.label }));
     try {
@@ -95,29 +75,29 @@ export default function App() {
     }
   };
 
-  const handleAiGenerate = async () => {
+  const runAiGen = async () => {
     if (!aiPrompt.trim() || !editingBtn) return;
     setIsAiLoading(true);
     setLastError(null);
     try {
       const newSteps = await generateMacro(aiPrompt);
       if (newSteps.length > 0) {
-        setEditingBtn({
-          ...editingBtn,
-          steps: [...editingBtn.steps, ...newSteps.map(s => ({ ...s, id: Math.random().toString(36).substr(2, 9) }))]
-        });
+        setEditingBtn(prev => prev ? ({
+          ...prev,
+          steps: [...prev.steps, ...newSteps]
+        }) : null);
         setAiPrompt('');
       } else {
-        setLastError("AI komut üretemedi, lütfen daha açık yazın.");
+        setLastError("Komut anlaşılamadı, farklı deneyin.");
       }
     } catch (e) {
-      setLastError("AI servisine ulaşılamadı.");
+      setLastError("AI Servis hatası.");
     } finally {
       setIsAiLoading(false);
     }
   };
 
-  const saveChanges = () => {
+  const saveBtn = () => {
     if (!editingBtn) return;
     setState(s => ({
       ...s,
@@ -130,144 +110,119 @@ export default function App() {
   };
 
   const getIcon = (name: string) => {
-    const props = { size: 28, className: "text-white" };
+    const p = { size: 24, className: "text-white" };
     switch(name) {
-      case 'CHROME': return <Globe {...props} />;
-      case 'STEAM': return <Gamepad2 {...props} />;
-      case 'MUSIC': return <Music {...props} />;
-      case 'YOUTUBE': return <Youtube {...props} />;
-      default: return <Cpu {...props} />;
+      case 'MUSIC': return <Music {...p} />;
+      case 'YOUTUBE': return <Youtube {...p} />;
+      case 'CHROME': return <Globe {...p} />;
+      case 'STEAM': return <Gamepad2 {...p} />;
+      default: return <Cpu {...p} />;
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans select-none pb-20">
-      <header className="p-6 flex justify-between items-center bg-slate-900/60 sticky top-0 z-40 backdrop-blur-xl border-b border-white/5">
+    <div className="min-h-screen bg-slate-950 text-slate-100 select-none pb-20 overflow-x-hidden">
+      <header className="p-5 flex justify-between items-center bg-slate-900/60 sticky top-0 z-40 backdrop-blur-xl border-b border-white/5">
         <div onClick={() => {
           const ip = prompt("PC IP Adresi?", state.pcIpAddress);
           if (ip !== null) setState(s => ({...s, pcIpAddress: ip.trim()}));
         }} className="cursor-pointer">
           <div className="flex items-center gap-2">
-            <div className={`w-2.5 h-2.5 rounded-full ${state.connectionStatus === 'connected' ? 'bg-green-500 shadow-[0_0_12px_rgba(34,197,94,0.6)]' : 'bg-red-500'}`} />
+            <div className={`w-2.5 h-2.5 rounded-full ${state.connectionStatus === 'connected' ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : 'bg-red-500'}`} />
             <h1 className="text-xl font-black tracking-tighter italic">NEXUS</h1>
           </div>
-          <span className="text-[9px] font-mono text-slate-500 uppercase">{state.pcIpAddress || 'IP AYARLA'}</span>
+          <span className="text-[10px] font-mono text-slate-500 uppercase tracking-tighter">{state.pcIpAddress || 'IP AYARLA'}</span>
         </div>
         <button 
           onClick={() => setState(s => ({ ...s, isEditMode: !s.isEditMode }))}
-          className={`px-5 py-2 rounded-full text-[10px] font-black uppercase transition-all ${state.isEditMode ? 'bg-orange-500 text-white' : 'bg-slate-800 text-slate-400'}`}
+          className={`px-4 py-1.5 rounded-full text-[10px] font-black transition-all ${state.isEditMode ? 'bg-orange-500 text-white' : 'bg-slate-800 text-slate-400'}`}
         >
           {state.isEditMode ? 'BİTTİ' : 'DÜZENLE'}
         </button>
       </header>
 
-      <main className="p-6 grid grid-cols-2 gap-5">
+      <main className="p-6 grid grid-cols-2 gap-4">
         {state.pages[0].buttons.map(btn => (
           <button
             key={btn.id}
             onClick={() => handleButtonClick(btn)}
-            className={`${btn.color} relative aspect-square rounded-[2.5rem] flex flex-col items-center justify-center gap-3 shadow-2xl active:scale-90 transition-all border border-white/10 group`}
+            className={`${btn.color} relative aspect-square rounded-[2rem] flex flex-col items-center justify-center gap-2 shadow-xl active:scale-90 transition-all border border-white/5`}
           >
-            <div className="p-4 bg-black/20 rounded-2xl backdrop-blur-sm group-hover:scale-110 transition-transform">
-              {getIcon(btn.icon)}
-            </div>
-            <span className="font-bold text-[10px] uppercase tracking-widest text-white/90">{btn.label}</span>
+            <div className="p-3 bg-black/20 rounded-xl">{getIcon(btn.icon)}</div>
+            <span className="font-bold text-[10px] uppercase tracking-widest">{btn.label}</span>
             {state.isEditMode && (
-              <div className="absolute inset-0 bg-slate-900/80 rounded-[2.5rem] flex items-center justify-center backdrop-blur-[2px]">
-                <Edit3 className="text-cyan-400" size={32} />
-              </div>
+              <div className="absolute inset-0 bg-slate-900/80 rounded-[2rem] flex items-center justify-center"><Edit3 className="text-cyan-400" /></div>
             )}
           </button>
         ))}
-
         {state.isEditMode && (
           <button 
             onClick={() => {
-              const newBtn = { id: Date.now().toString(), label: 'YENİ', color: 'bg-slate-800', icon: 'DEFAULT', steps: [] };
-              setState(s => ({...s, pages: s.pages.map(p => ({...p, buttons: [...p.buttons, newBtn]}))}));
+              const b = { id: Date.now().toString(), label: 'YENİ', color: 'bg-slate-800', icon: 'DEFAULT', steps: [] };
+              setState(s => ({...s, pages: s.pages.map(p => ({...p, buttons: [...p.buttons, b]}))}));
             }}
-            className="aspect-square rounded-[2.5rem] border-2 border-dashed border-slate-700 flex flex-col items-center justify-center text-slate-500 gap-2 hover:border-slate-500 transition-colors"
-          >
-            <Plus size={32} />
-          </button>
+            className="aspect-square rounded-[2rem] border-2 border-dashed border-slate-800 flex items-center justify-center text-slate-600"
+          ><Plus size={32} /></button>
         )}
       </main>
 
       {editingBtn && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/90 backdrop-blur-md animate-in slide-in-from-bottom duration-300">
-          <div className="bg-slate-900 w-full max-w-lg rounded-t-[3.5rem] p-8 border-t border-white/10 shadow-2xl max-h-[95vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-8">
-              <h2 className="text-2xl font-black italic tracking-tight">BUTON DÜZENLE</h2>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/90 backdrop-blur-sm animate-in slide-in-from-bottom">
+          <div className="bg-slate-900 w-full max-w-lg rounded-t-[3rem] p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-black italic uppercase">Buton Yapılandır</h2>
               <button onClick={() => setEditingBtn(null)} className="p-2 bg-slate-800 rounded-full"><X size={20} /></button>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-4">
               <input 
-                className="w-full bg-slate-800 border border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-cyan-500/50"
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl p-4 text-sm font-bold outline-none"
                 value={editingBtn.label}
                 onChange={e => setEditingBtn({...editingBtn, label: e.target.value})}
-                placeholder="Buton Adı"
+                placeholder="Buton Etiketi"
               />
 
-              <div className="bg-cyan-500/5 border border-cyan-500/20 p-6 rounded-[2rem] space-y-4">
+              <div className="bg-cyan-500/5 border border-cyan-500/20 p-5 rounded-2xl space-y-3">
                 <div className="flex items-center gap-2 text-cyan-400">
                   <Sparkles size={16} />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Akıllı Komut (Gemini)</span>
+                  <span className="text-[10px] font-black uppercase">Akıllı Komut (Gemini)</span>
                 </div>
                 <div className="flex gap-2">
                   <textarea 
-                    className="flex-1 bg-slate-800/50 border border-slate-700 rounded-2xl p-4 text-sm outline-none h-24 resize-none"
-                    placeholder="Örn: YouTube'da en son shorts videosunu aç..."
+                    className="flex-1 bg-slate-800/50 border border-slate-700 rounded-xl p-3 text-sm outline-none h-20 resize-none"
+                    placeholder="Örn: spotify aç veya youtube shorts git..."
                     value={aiPrompt}
                     onChange={e => setAiPrompt(e.target.value)}
                   />
                   <button 
                     disabled={isAiLoading}
-                    onClick={handleAiGenerate}
-                    className="bg-cyan-500 text-slate-950 p-4 rounded-2xl self-end disabled:opacity-50"
+                    onClick={runAiGen}
+                    className="bg-cyan-500 text-slate-950 p-4 rounded-xl self-end active:scale-90 transition-transform"
                   >
                     {isAiLoading ? <RefreshCw className="animate-spin" /> : <ArrowRight />}
                   </button>
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <label className="text-[10px] font-black text-slate-500 uppercase px-2">Aksiyon Zinciri</label>
-                {editingBtn.steps.map((step, idx) => (
-                  <div key={step.id} className="bg-slate-800/40 p-4 rounded-2xl flex items-center justify-between border border-white/5">
-                    <div className="flex items-center gap-4">
-                      <div className="text-[10px] font-mono text-cyan-500 bg-cyan-500/10 w-6 h-6 rounded-md flex items-center justify-center">{idx + 1}</div>
-                      <div>
-                        <div className="text-[10px] font-black text-slate-400 uppercase">{step.type}</div>
-                        <div className="text-xs text-slate-200 italic">"{step.description}"</div>
-                      </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-500 uppercase px-2">Aksiyonlar ({editingBtn.steps.length})</label>
+                {editingBtn.steps.map((s, idx) => (
+                  <div key={s.id} className="bg-slate-800/40 p-3 rounded-xl flex items-center justify-between border border-white/5">
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] font-mono text-cyan-500">{idx + 1}</span>
+                      <div className="text-xs font-bold text-slate-300">"{s.description}"</div>
                     </div>
-                    <button 
-                      onClick={() => setEditingBtn({...editingBtn, steps: editingBtn.steps.filter(s => s.id !== step.id)})}
-                      className="p-2 text-red-500/30 hover:text-red-500"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    <button onClick={() => setEditingBtn({...editingBtn, steps: editingBtn.steps.filter(x => x.id !== s.id)})} className="text-red-500/40"><Trash2 size={14} /></button>
                   </div>
                 ))}
               </div>
 
-              <div className="flex gap-4 pt-4">
-                <button 
-                  onClick={saveChanges}
-                  className="flex-1 bg-gradient-to-r from-orange-500 to-red-600 text-white font-black py-5 rounded-2xl shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2"
-                >
-                  <Save size={20} /> KAYDET
-                </button>
-                <button 
-                  onClick={() => {
-                    setState(s => ({...s, pages: s.pages.map(p => ({...p, buttons: p.buttons.filter(b => b.id !== editingBtn.id)}))}));
-                    setEditingBtn(null);
-                  }}
-                  className="bg-red-500/10 text-red-500 p-5 rounded-2xl"
-                >
-                  <Trash2 size={24} />
-                </button>
+              <div className="flex gap-3 pt-4">
+                <button onClick={saveBtn} className="flex-1 bg-orange-600 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all"><Save size={18}/> KAYDET</button>
+                <button onClick={() => {
+                  setState(s => ({...s, pages: s.pages.map(p => ({...p, buttons: p.buttons.filter(b => b.id !== editingBtn.id)}))}));
+                  setEditingBtn(null);
+                }} className="bg-red-500/10 text-red-500 px-6 rounded-2xl"><Trash2 /></button>
               </div>
             </div>
           </div>
@@ -275,17 +230,17 @@ export default function App() {
       )}
 
       {state.isExecuting && (
-        <div className="fixed bottom-6 left-6 right-6 z-50 bg-cyan-500 text-slate-950 p-4 rounded-2xl flex items-center gap-4 shadow-2xl animate-bounce">
-          <RefreshCw className="animate-spin" size={20} />
-          <span className="font-bold text-xs uppercase">PC'YE AKTARILIYOR: {state.lastExecutedAction}</span>
+        <div className="fixed bottom-6 left-6 right-6 z-50 bg-cyan-500 text-slate-950 p-4 rounded-2xl flex items-center gap-3 shadow-2xl animate-pulse">
+          <RefreshCw className="animate-spin" size={18} />
+          <span className="font-black text-[10px] uppercase">PC Aktarımı: {state.lastExecutedAction}</span>
         </div>
       )}
 
       {lastError && (
         <div className="fixed bottom-6 left-6 right-6 z-50 bg-red-600 text-white p-4 rounded-2xl flex items-center justify-between shadow-2xl">
-          <div className="flex items-center gap-3">
-            <AlertCircle size={18} />
-            <span className="text-[11px] font-bold">{lastError}</span>
+          <div className="flex items-center gap-2">
+            <AlertCircle size={16} />
+            <span className="text-[10px] font-bold">{lastError}</span>
           </div>
           <button onClick={() => setLastError(null)}><X size={16} /></button>
         </div>

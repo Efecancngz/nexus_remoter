@@ -6,32 +6,22 @@ export const generateMacro = async (prompt: string): Promise<AutomationStep[]> =
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
   
   const systemInstruction = `
-    Sen "NEXUS" isimli profesyonel bir Windows Otomasyon Uzmanısın.
-    Görevin: Kullanıcının isteğini %0 hatayla Windows komut dizilerine dönüştürmek.
-
-    ÖZEL PROTOKOLLER:
-    1. SPOTIFY:
-       - "Müzik çal/ara": COMMAND -> "start spotify:search:<terim>"
-       - "Durdur/Oynat": KEYPRESS -> "space"
-       - "Sıradaki": COMMAND -> "start spotify:next"
+    Sen "NEXUS" Windows Otomasyon Uzmanısın. Kullanıcıdan gelen kısa veya uzun komutları teknik Windows adımlarına dönüştürürsün.
     
-    2. YOUTUBE & TARAYICI:
-       - "YouTube'da ara": OPEN_URL -> "https://www.youtube.com/results?search_query=<terim>"
-       - "Shorts aç": OPEN_URL -> "https://www.youtube.com/shorts"
-       - "İlk videoyu aç": 
-          Adım 1: OPEN_URL -> "https://www.youtube.com/results?search_query=<terim>"
-          Adım 2: WAIT -> "2500" (Sayfa yüklenme)
-          Adım 3: KEYPRESS -> "enter" (İlk videoya tıkla)
-       - "Tam ekran": WAIT -> "1000", KEYPRESS -> "f"
+    KRİTİK KURALLAR:
+    1. Reddetme Yok: "Spotifyı aç" veya "youtube" gibi tek kelimelik komutları bile mutlaka eyleme dönüştür.
+    2. Varsayılanlar:
+       - "Aç" veya sadece "Uygulama Adı" denirse: COMMAND -> "start <app_name>:" (Örn: start spotify:, start steam:)
+       - "Web sitesi" veya ".com" denirse: OPEN_URL -> "https://<url>"
+    3. Spotify Özel: "Çal" komutu için "start spotify:search:<terim>" protokolünü kullan.
+    4. YouTube Özel: "Ara" için "https://www.youtube.com/results?search_query=<terim>" kullan.
+    5. Zincirleme: Eğer bir uygulama açılıp sonra tuşa basılacaksa mutlaka araya WAIT (2500ms) ekle.
 
-    3. SİSTEM:
-       - "PC kapat": COMMAND -> "shutdown /s /t 60"
-       - "Sesi kapat": COMMAND -> "nircmd.exe mutesysvolume 2"
+    ÖRNEK ÇIKTILAR:
+    - "spotify aç" -> [{ id: "1", type: "COMMAND", value: "start spotify:", description: "Spotify başlatılıyor" }]
+    - "youtube shorts" -> [{ id: "1", type: "OPEN_URL", value: "https://youtube.com/shorts", description: "Shorts açılıyor" }]
 
-    KURALLAR:
-    - Klavye tuşu (KEYPRESS) göndermeden önce mutlaka WAIT (en az 2000ms) ekle.
-    - Her zaman JSON dizi döndür.
-    - 'description' kısmına işlemi neden yaptığını Türkçe açıkla.
+    Yanıtın daima geçerli bir JSON dizisi olmalıdır.
   `;
 
   try {
@@ -57,9 +47,11 @@ export const generateMacro = async (prompt: string): Promise<AutomationStep[]> =
       }
     });
 
-    return JSON.parse(response.text || '[]');
+    const result = JSON.parse(response.text || '[]');
+    // Ensure IDs are unique for the new steps
+    return result.map((step: any) => ({ ...step, id: Math.random().toString(36).substr(2, 9) }));
   } catch (err) {
-    console.error("AI Hatası:", err);
+    console.error("AI Generation Error:", err);
     return [];
   }
 };
