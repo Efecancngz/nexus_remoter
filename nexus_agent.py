@@ -1,15 +1,15 @@
-# nexus_agent.py
 import os
 import sys
 import subprocess
 import webbrowser
 import platform
 import socket
+import pyautogui  # YENİ: Klavye kontrolü için eklendi
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app) # Telefon uygulamasının bağlanabilmesi için gerekli
+CORS(app)
 
 def get_ip():
     """Bilgisayarın yerel IP adresini döndürür."""
@@ -36,7 +36,7 @@ def execute():
         return jsonify({"error": "Veri bulunamadı"}), 400
 
     action_type = data.get('type')
-    value = data.get('value')
+    value = data.get('value') # Örn: 'enter', 'space', 'f', 'esc'
     description = data.get('description', 'İşlem yapılıyor')
 
     print(f"[NEXUS] İstek Alındı: {action_type} -> {value} ({description})")
@@ -47,7 +47,6 @@ def execute():
             
         elif action_type == 'LAUNCH_APP':
             if platform.system() == "Windows":
-                # Windows'ta uygulamayı direkt veya start ile başlatır
                 os.startfile(value) if os.path.exists(value) else subprocess.Popen(f"start {value}", shell=True)
             elif platform.system() == "Darwin": # macOS
                 subprocess.Popen(["open", "-a", value])
@@ -55,13 +54,18 @@ def execute():
                 subprocess.Popen([value])
 
         elif action_type == 'COMMAND':
-            # Doğrudan terminal komutu çalıştırır
             subprocess.Popen(value, shell=True)
 
         elif action_type == 'MACRO':
-            # Çoklu komutları (isteğe bağlı) burada işleyebilirsiniz
             print(f"Makro çalıştırılıyor: {value}")
             subprocess.Popen(value, shell=True)
+
+        # --- YENİ EKLENEN KISIM ---
+        elif action_type == 'KEYPRESS':
+            # Görseldeki talimata uygun olarak tuşa basma eylemi
+            # value değeri basılacak tuşu temsil eder (örn: 'k', 'space', 'enter')
+            pyautogui.press(value)
+        # --------------------------
 
         return jsonify({"success": True, "message": f"{description} başarıyla çalıştırıldı"}), 200
 
@@ -81,5 +85,4 @@ if __name__ == '__main__':
     print("-" * 50)
     print("Durdurmak için Ctrl+C tuşlarına basın.")
     
-    # Yerel ağdaki her cihazın erişebilmesi için 0.0.0.0 üzerinden dinle
     app.run(host='0.0.0.0', port=port, debug=False)
