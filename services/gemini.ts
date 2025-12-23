@@ -6,28 +6,26 @@ export const generateMacro = async (prompt: string): Promise<AutomationStep[]> =
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
   
   const systemInstruction = `
-    Sen "NEXUS" Windows Otomasyon Uzmanısın. Kullanıcıdan gelen kısa veya uzun komutları teknik Windows adımlarına dönüştürürsün.
-    
-    KRİTİK KURALLAR:
-    1. Reddetme Yok: "Spotifyı aç" veya "youtube" gibi tek kelimelik komutları bile mutlaka eyleme dönüştür.
-    2. Varsayılanlar:
-       - "Aç" veya sadece "Uygulama Adı" denirse: COMMAND -> "start <app_name>:" (Örn: start spotify:, start steam:)
-       - "Web sitesi" veya ".com" denirse: OPEN_URL -> "https://<url>"
-    3. Spotify Özel: "Çal" komutu için "start spotify:search:<terim>" protokolünü kullan.
-    4. YouTube Özel: "Ara" için "https://www.youtube.com/results?search_query=<terim>" kullan.
-    5. Zincirleme: Eğer bir uygulama açılıp sonra tuşa basılacaksa mutlaka araya WAIT (2500ms) ekle.
+    Sen "NEXUS" isimli profesyonel bir Windows Otomasyon Uzmanısın. 
+    Kullanıcının her isteğini (kısa veya uzun fark etmez) mutlaka teknik Windows komutlarına dönüştürmelisin.
 
-    ÖRNEK ÇIKTILAR:
-    - "spotify aç" -> [{ id: "1", type: "COMMAND", value: "start spotify:", description: "Spotify başlatılıyor" }]
-    - "youtube shorts" -> [{ id: "1", type: "OPEN_URL", value: "https://youtube.com/shorts", description: "Shorts açılıyor" }]
+    KESİN KURALLAR:
+    1. ASLA REDDETME: "spotify", "chrome aç" gibi çok kısa promptları bile eyleme dönüştür.
+    2. VARSAYILANLAR:
+       - Uygulama ismi verilirse: COMMAND -> "start <isim>:" (Örn: start spotify:, start steam:)
+       - URL veya site adı verilirse: OPEN_URL -> "https://<site_adi>.com"
+    3. ÖZEL DURUMLAR:
+       - "Müzik çal" -> COMMAND: "start spotify:search:<terim>" -> WAIT: 2000 -> KEYPRESS: "enter"
+       - "Video aç" -> OPEN_URL: "https://youtube.com/results?search_query=<terim>" -> WAIT: 2000 -> KEYPRESS: "enter"
+    4. ZİNCİRLEME: KEYPRESS eyleminden önce daima bir WAIT (en az 2000ms) ekle.
 
-    Yanıtın daima geçerli bir JSON dizisi olmalıdır.
+    Daima geçerli bir JSON dizisi döndür. 'id' alanı için rastgele bir string kullan.
   `;
 
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: prompt,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
       config: {
         systemInstruction,
         responseMimeType: "application/json",
@@ -47,11 +45,16 @@ export const generateMacro = async (prompt: string): Promise<AutomationStep[]> =
       }
     });
 
-    const result = JSON.parse(response.text || '[]');
-    // Ensure IDs are unique for the new steps
-    return result.map((step: any) => ({ ...step, id: Math.random().toString(36).substr(2, 9) }));
+    const text = response.text;
+    if (!text) return [];
+    
+    const result = JSON.parse(text);
+    return result.map((step: any) => ({
+      ...step,
+      id: Math.random().toString(36).substr(2, 9)
+    }));
   } catch (err) {
-    console.error("AI Generation Error:", err);
+    console.error("AI Macro Generation Error:", err);
     return [];
   }
 };

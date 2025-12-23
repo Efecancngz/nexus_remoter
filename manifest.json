@@ -10,8 +10,8 @@
       "purpose": "any maskable"
     }
   ],
-  "start_url": "./index.html",
-  "scope": ".",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "theme_color": "#020617",
