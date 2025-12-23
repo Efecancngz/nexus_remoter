@@ -6,22 +6,24 @@ export const generateMacro = async (prompt: string): Promise<AutomationStep[]> =
   const apiKey = process.env.API_KEY;
   if (!apiKey) return [];
 
-  // Daha yüksek kota limitleri için 2.0-flash-exp modeline geçildi
+  // Google'ın şu an en stabil ve yüksek kotalı modeli
   const ai = new GoogleGenAI({ apiKey });
-  const model = 'gemini-2.0-flash-exp';
+  const modelName = 'gemini-3-flash-preview';
 
-  // Önceki çalışan "basit prompt" mantığına geri dönüldü
-  const fullPrompt = `Bir bilgisayar otomasyon sistemi için şu isteği teknik adımlara dönüştür: "${prompt}". 
-  Sadece geçerli bir JSON dizisi döndür. Örnek çıktı formatı: [{"type": "COMMAND", "value": "start spotify:", "description": "Spotify açılıyor"}]
-  
-  Kullanabileceğin tipler: ${Object.values(ActionType).join(", ")}`;
+  const systemInstruction = `Sen teknik bir asistan olan NEXUS'sun. 
+  Görevin: Kullanıcı isteğini teknik adımlara çevirmek.
+  Kural 1: Sadece JSON dizisi döndür.
+  Kural 2: "aç", "başlat" gibi kelimeler için COMMAND tipini kullan (Örn: "start spotify:").
+  Kural 3: Linkler için OPEN_URL tipini kullan.`;
 
   try {
     const response = await ai.models.generateContent({
-      model: model,
-      contents: fullPrompt,
+      model: modelName,
+      contents: prompt,
       config: {
+        systemInstruction,
         responseMimeType: "application/json",
+        thinkingConfig: { thinkingBudget: 0 }, // Kota dostu: Düşünme işlemini kapatıyoruz
         safetySettings: [
           { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
           { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -55,9 +57,9 @@ export const generateMacro = async (prompt: string): Promise<AutomationStep[]> =
 
   } catch (err: any) {
     console.error("NEXUS AI ERROR:", err);
-    // 429 hatasını (Rate Limit) yakalayıp anlamlı bir mesaj fırlatıyoruz
+    // 429 hatası durumunda kullanıcıyı bilgilendir
     if (err.status === 429 || err.message?.includes("429")) {
-      throw new Error("API kullanım limiti aşıldı. Lütfen 1-2 dakika bekleyip tekrar deneyin.");
+      throw new Error("Google API kotası doldu. Lütfen 60 saniye bekleyip tekrar deneyin.");
     }
     return [];
   }
