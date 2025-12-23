@@ -74,7 +74,7 @@ export default function App() {
       const result = await executor.run(btn.steps, state.pcIpAddress);
       if (!result.success) setLastError(result.error || "Bilinmeyen bir hata oluştu.");
     } catch (e) {
-      setLastError("Bağlantı hatası: Bilgisayar ajanı kapalı olabilir.");
+      setLastError("Bağlantı hatası: Bilgisayar ajanı kapalı veya IP yanlış.");
     } finally {
       setState(s => ({ ...s, isExecuting: false }));
     }
@@ -99,11 +99,10 @@ export default function App() {
         });
         setAiPrompt('');
       } else {
-        setLastError("AI bu komutu eyleme dönüştüremedi.");
+        setLastError("AI komutu anlayamadı.");
       }
     } catch (e: any) {
-      // 429 gibi özel hataları yakalayıp kullanıcıya gösteriyoruz
-      setLastError(e.message || "AI servisiyle iletişim kurulamadı.");
+      setLastError(e.message);
     } finally {
       setIsAiLoading(false);
     }
@@ -231,11 +230,6 @@ export default function App() {
                       <button onClick={() => setEditingBtn({...editingBtn, steps: editingBtn.steps.filter(x => x.id !== s.id)})} className="text-red-500/40 hover:text-red-500 p-1"><Trash2 size={16} /></button>
                     </div>
                   ))}
-                  {editingBtn.steps.length === 0 && (
-                    <div className="p-8 text-center border-2 border-dashed border-slate-800 rounded-3xl text-slate-600 text-xs">
-                      AI kullanarak veya manuel adım ekleyerek başlayın
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -244,7 +238,7 @@ export default function App() {
                   onClick={saveChanges} 
                   className="flex-1 bg-gradient-to-r from-orange-500 to-red-600 text-white font-black py-5 rounded-[1.8rem] flex items-center justify-center gap-2 active:scale-95 transition-all shadow-xl shadow-orange-500/20"
                 >
-                  <Save size={20}/> DEĞİŞİKLİKLERİ KAYDET
+                  <Save size={20}/> KAYDET
                 </button>
                 <button 
                   onClick={() => {

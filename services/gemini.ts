@@ -6,15 +6,14 @@ export const generateMacro = async (prompt: string): Promise<AutomationStep[]> =
   const apiKey = process.env.API_KEY;
   if (!apiKey) return [];
 
-  // Google'ın şu an en stabil ve yüksek kotalı modeli
+  // Gemini 3 Flash Preview: En hızlı ve en yüksek kotalı model
   const ai = new GoogleGenAI({ apiKey });
   const modelName = 'gemini-3-flash-preview';
 
-  const systemInstruction = `Sen teknik bir asistan olan NEXUS'sun. 
-  Görevin: Kullanıcı isteğini teknik adımlara çevirmek.
-  Kural 1: Sadece JSON dizisi döndür.
-  Kural 2: "aç", "başlat" gibi kelimeler için COMMAND tipini kullan (Örn: "start spotify:").
-  Kural 3: Linkler için OPEN_URL tipini kullan.`;
+  const systemInstruction = `Sen NEXUS AI asistanısın. 
+  Görevin: Kullanıcı isteğini bilgisayar otomasyon adımlarına çevirmek.
+  Önemli: Sadece saf JSON dizisi döndür. Başka açıklama yapma.
+  Kullanılabilir Tipler: ${Object.values(ActionType).join(", ")}`;
 
   try {
     const response = await ai.models.generateContent({
@@ -23,7 +22,7 @@ export const generateMacro = async (prompt: string): Promise<AutomationStep[]> =
       config: {
         systemInstruction,
         responseMimeType: "application/json",
-        thinkingConfig: { thinkingBudget: 0 }, // Kota dostu: Düşünme işlemini kapatıyoruz
+        thinkingConfig: { thinkingBudget: 0 }, // Token tasarrufu ve hız için kapalı
         safetySettings: [
           { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
           { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -57,10 +56,13 @@ export const generateMacro = async (prompt: string): Promise<AutomationStep[]> =
 
   } catch (err: any) {
     console.error("NEXUS AI ERROR:", err);
-    // 429 hatası durumunda kullanıcıyı bilgilendir
+    
+    // 429 hatası genellikle "Rate Limit" yani istek sayısı sınırıdır
     if (err.status === 429 || err.message?.includes("429")) {
-      throw new Error("Google API kotası doldu. Lütfen 60 saniye bekleyip tekrar deneyin.");
+      throw new Error("Dakikalık AI isteği sınırına ulaşıldı. Lütfen 20 saniye bekleyip tekrar deneyin.");
     }
-    return [];
+    
+    // Diğer hatalar (örn: internet yok veya API key geçersiz)
+    throw new Error("AI şu an yanıt veremiyor. Lütfen bağlantınızı kontrol edin.");
   }
 };
