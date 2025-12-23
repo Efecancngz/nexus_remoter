@@ -13,6 +13,12 @@ export interface AutomationStep {
   description: string;
 }
 
+export interface SavedMacro {
+  id: string;
+  name: string;
+  steps: AutomationStep[];
+}
+
 export interface ControlButton {
   id: string;
   label: string;
@@ -30,8 +36,10 @@ export interface DashboardPage {
 export interface AppState {
   currentPageId: string;
   pages: DashboardPage[];
+  macros: SavedMacro[];
   isEditMode: boolean;
   isExecuting: boolean;
   pcIpAddress: string;
   connectionStatus: 'online' | 'offline' | 'checking';
+  lastExecutedAction?: string;
 }
