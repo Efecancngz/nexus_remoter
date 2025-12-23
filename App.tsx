@@ -81,22 +81,28 @@ export default function App() {
   };
 
   const handleAiGenerate = async () => {
-    if (!aiPrompt.trim() || !editingBtn) return;
+    const promptValue = aiPrompt.trim();
+    if (!promptValue || !editingBtn) return;
+
     setIsAiLoading(true);
     setLastError(null);
+    
     try {
-      const newSteps = await generateMacro(aiPrompt);
-      if (newSteps.length > 0) {
-        setEditingBtn(prev => prev ? ({
-          ...prev,
-          steps: [...prev.steps, ...newSteps]
-        }) : null);
+      const newSteps = await generateMacro(promptValue);
+      if (newSteps && newSteps.length > 0) {
+        setEditingBtn(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            steps: [...prev.steps, ...newSteps]
+          };
+        });
         setAiPrompt('');
       } else {
-        setLastError("AI komutları oluşturamadı. Lütfen 'spotifyı aç' gibi daha net bir şey yazın.");
+        setLastError("AI bu komutu eyleme dönüştüremedi. Lütfen farklı bir şekilde ifade edin.");
       }
     } catch (e) {
-      setLastError("AI servisiyle bağlantı kurulamadı.");
+      setLastError("AI servisiyle iletişim kurulamadı. İnternet bağlantınızı kontrol edin.");
     } finally {
       setIsAiLoading(false);
     }
