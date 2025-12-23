@@ -3,33 +3,25 @@ import { GoogleGenAI, Type, HarmCategory, HarmBlockThreshold } from "@google/gen
 import { ActionType, AutomationStep } from "../types";
 
 export const generateMacro = async (prompt: string): Promise<AutomationStep[]> => {
-  // Guidelines uyarınca API KEY doğrudan process.env'den alınır
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) return [];
+
+  // Daha yüksek kota limitleri için 2.0-flash-exp modeline geçildi
+  const ai = new GoogleGenAI({ apiKey });
+  const model = 'gemini-2.0-flash-exp';
+
+  // Önceki çalışan "basit prompt" mantığına geri dönüldü
+  const fullPrompt = `Bir bilgisayar otomasyon sistemi için şu isteği teknik adımlara dönüştür: "${prompt}". 
+  Sadece geçerli bir JSON dizisi döndür. Örnek çıktı formatı: [{"type": "COMMAND", "value": "start spotify:", "description": "Spotify açılıyor"}]
   
-  const systemInstruction = `
-    Sen "NEXUS" isimli profesyonel bir Windows Otomasyon Uzmanısın. 
-    Kullanıcıdan gelen isteği teknik Windows adımlarına (JSON dizi formatında) dönüştür.
-
-    EYLEM TİPLERİ:
-    - COMMAND: 'start spotify:', 'start chrome https://google.com', 'shutdown /s /t 0'
-    - OPEN_URL: 'https://youtube.com', 'https://netflix.com'
-    - WAIT: '2000' (milisaniye)
-    - KEYPRESS: 'enter', 'space', 'media_play_pause'
-
-    KURALLAR:
-    1. ASLA REDDETME: "spotify", "aç", "youtube" gibi tek kelimelik komutları bile mutlaka en az bir eyleme dönüştür.
-    2. VARSAYILAN: Eğer sadece bir uygulama adı verilirse COMMAND: "start <isim>:" kullan.
-    3. ÇIKTI: Sadece geçerli bir JSON dizisi döndür.
-  `;
+  Kullanabileceğin tipler: ${Object.values(ActionType).join(", ")}`;
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
+      model: model,
+      contents: fullPrompt,
       config: {
-        systemInstruction,
         responseMimeType: "application/json",
-        // Güvenlik filtrelerini kapatıyoruz ki "PC kontrolü" tehlikeli sayılmasın
         safetySettings: [
           { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
           { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -53,22 +45,20 @@ export const generateMacro = async (prompt: string): Promise<AutomationStep[]> =
     });
 
     const text = response.text;
-    if (!text) {
-      console.error("NEXUS AI: Model boş yanıt döndürdü.");
-      return [];
-    }
+    if (!text) return [];
 
-    console.log("NEXUS AI RAW RESPONSE:", text);
-    
     const rawSteps = JSON.parse(text);
-    if (!Array.isArray(rawSteps)) return [];
-
-    return rawSteps.map((step: any) => ({
+    return Array.isArray(rawSteps) ? rawSteps.map((step: any) => ({
       ...step,
       id: Math.random().toString(36).substring(2, 11)
-    }));
+    })) : [];
+
   } catch (err: any) {
     console.error("NEXUS AI ERROR:", err);
+    // 429 hatasını (Rate Limit) yakalayıp anlamlı bir mesaj fırlatıyoruz
+    if (err.status === 429 || err.message?.includes("429")) {
+      throw new Error("API kullanım limiti aşıldı. Lütfen 1-2 dakika bekleyip tekrar deneyin.");
+    }
     return [];
   }
 };

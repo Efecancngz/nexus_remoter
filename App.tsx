@@ -99,10 +99,11 @@ export default function App() {
         });
         setAiPrompt('');
       } else {
-        setLastError("AI bu komutu eyleme dönüştüremedi. Lütfen farklı bir şekilde ifade edin.");
+        setLastError("AI bu komutu eyleme dönüştüremedi.");
       }
-    } catch (e) {
-      setLastError("AI servisiyle iletişim kurulamadı. İnternet bağlantınızı kontrol edin.");
+    } catch (e: any) {
+      // 429 gibi özel hataları yakalayıp kullanıcıya gösteriyoruz
+      setLastError(e.message || "AI servisiyle iletişim kurulamadı.");
     } finally {
       setIsAiLoading(false);
     }
