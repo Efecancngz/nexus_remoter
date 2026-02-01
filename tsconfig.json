@@ -1,9 +1,21 @@
 {
+  "include": [
+    "vite-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "venv"
+  ],
   "compilerOptions": {
     "target": "ES2022",
     "experimentalDecorators": true,
     "useDefineForClassFields": false,
     "module": "ESNext",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "lib": [
       "ES2022",
       "DOM",
@@ -11,7 +23,10 @@
     ],
     "skipLibCheck": true,
     "types": [
-      "node"
+      "node",
+      "react",
+      "react-dom",
+      "vite/client"
     ],
     "moduleResolution": "bundler",
     "isolatedModules": true,
