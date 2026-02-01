@@ -1,57 +1,71 @@
-
-import { GoogleGenAI, Type, HarmCategory, HarmBlockThreshold } from "@google/genai";
+import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 import { ActionType, AutomationStep } from "../types";
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const generateMacro = async (
-  prompt: string, 
-  retryCount = 0, 
+  prompt: string,
+  retryCount = 0,
   onRetry?: (count: number, waitTime: number) => void
 ): Promise<AutomationStep[]> => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) return [];
+  const apiKey = import.meta.env.VITE_API_KEY;
+  if (!apiKey) {
+    console.error("API Key is missing! Check .env file.");
+    throw new Error("API Anahtarı eksik! .env dosyasını kontrol edin.");
+  }
 
-  // SDK örneğini her denemede tazelemek bazen bağlantı sorunlarını çözer
-  const ai = new GoogleGenAI({ apiKey });
-  const modelName = 'gemini-3-flash-preview'; 
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.5-flash",
+    systemInstruction: `Sen NEXUS AI asistanısın. 
+    Görevin: Kullanıcı isteğini bilgisayar otomasyon adımlarına çevirmek.
+    Önemli: Sadece saf JSON dizisi döndür. Başka açıklama yapma.
+    
+    Örnekler:
+    - "Spotify aç": { type: "LAUNCH_APP", value: "start spotify:", description: "Spotify açılıyor" }
+    - "Sesi kapat": { type: "VOLUME_MUTE", value: "true", description: "Ses kapatılıyor" }
+    - "Youtube'u aç": { type: "OPEN_URL", value: "https://youtube.com", description: "Youtube açılıyor" }
+    - "Whatsapp": { type: "LAUNCH_APP", value: "start whatsapp:", description: "Whatsapp başlatılıyor" }
+    - "DeepL aç": { type: "LAUNCH_APP", value: "DeepL", description: "DeepL başlatılıyor" }
 
-  const systemInstruction = `Sen NEXUS AI asistanısın. 
-  Görevin: Kullanıcı isteğini bilgisayar otomasyon adımlarına çevirmek.
-  Önemli: Sadece saf JSON dizisi döndür. Başka açıklama yapma.
-  Kullanılabilir Tipler: ${Object.values(ActionType).join(", ")}`;
+    Dikkat: Ardışık işlemlerde (Örn: "Notepad aç ve Merhaba yaz") araya mutlaka bekleme (WAIT) koy.
+    Örnek:
+    [
+      { type: "LAUNCH_APP", value: "notepad", description: "Notepad açılıyor" },
+      { type: "WAIT", value: "2000", description: "Pencere bekleniyor" },
+      { type: "KEYPRESS", value: "Merhaba dunya", description: "Yazı yazılıyor" }
+    ]
+
+    Kullanılabilir Tipler: ${Object.values(ActionType).join(", ")}`
+  });
 
   try {
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: prompt,
-      config: {
-        systemInstruction,
+    const chatSession = model.startChat({
+      generationConfig: {
+        temperature: 0.1,
+        topP: 0.95,
+        topK: 64,
+        maxOutputTokens: 8192,
         responseMimeType: "application/json",
-        thinkingConfig: { thinkingBudget: 0 },
-        safetySettings: [
-          { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-          { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-          { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-          { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-          { category: 'HARM_CATEGORY_CIVIC_INTEGRITY' as HarmCategory, threshold: HarmBlockThreshold.BLOCK_NONE }
-        ],
         responseSchema: {
-          type: Type.ARRAY,
+          type: SchemaType.ARRAY,
           items: {
-            type: Type.OBJECT,
+            type: SchemaType.OBJECT,
             properties: {
-              type: { type: Type.STRING, enum: Object.values(ActionType) },
-              value: { type: Type.STRING },
-              description: { type: Type.STRING }
+              type: { type: SchemaType.STRING, enum: Object.values(ActionType) },
+              value: { type: SchemaType.STRING },
+              description: { type: SchemaType.STRING }
             },
             required: ["type", "value", "description"]
           }
         }
-      }
+      },
+      history: [],
     });
 
-    const text = response.text;
+    const result = await chatSession.sendMessage(prompt);
+    const text = result.response.text();
+
     if (!text) return [];
 
     const rawSteps = JSON.parse(text);
@@ -61,27 +75,18 @@ export const generateMacro = async (
     })) : [];
 
   } catch (err: any) {
-    // 429 (Too Many Requests) veya Quota (Kota) hatası kontrolü
-    const isRateLimit = err.status === 429 || err.message?.includes("429") || err.message?.includes("quota");
-    
-    // Maksimum 3 kere dene
+    // 429 ve Quota hatası kontrolü
+    const isRateLimit = err.response?.status === 429 || err.message?.includes("429") || err.message?.includes("quota") || err.message?.includes("RESOURCE_EXHAUSTED");
+
     if (isRateLimit && retryCount < 3) {
-      // Üstel bekleme (Exponential Backoff): 2s, 4s, 8s
       const waitTime = Math.pow(2, retryCount + 1) * 1000;
-      
-      // UI'a bilgi gönder
       if (onRetry) onRetry(retryCount + 1, waitTime);
-      
       console.warn(`[NEXUS AI] 429 Alındı. Deneme: ${retryCount + 1}. Bekleme: ${waitTime}ms`);
-      
       await sleep(waitTime);
       return generateMacro(prompt, retryCount + 1, onRetry);
     }
-    
-    if (isRateLimit) {
-      throw new Error("Google API sınırı aşıldı. Lütfen 30-60 saniye bekleyin.");
-    }
-    
+
+    console.error("Gemini Error:", err);
     throw new Error(err.message || "AI yanıt veremedi.");
   }
 };
