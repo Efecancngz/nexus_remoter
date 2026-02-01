@@ -2,19 +2,61 @@
 
 ![Nexus Remote](https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=2070&auto=format&fit=crop)
 
-**Nexus Remote** turns your smartphone or tablet into a powerful AI-assisted PC command center. Powered by Google Gemini AI, it translates natural language commands (like "Open Spotify and play rock") into real executable actions on your PC.
+**Nexus Remote** turns your smartphone into an AI-powered PC command center. Whether you just want to use it or dive into the code, everything is Open Source.
 
-## ✨ Key Features
-*   **🧠 AI Macros:** Understands complex commands like "Turn off lights and start movie mode".
-*   **🔒 Secure Pairing:** Prevents unauthorized access with a dynamic PIN system.
-*   **⚡ Low Latency:** Instant response time over Local Loopback/Network.
-*   **🎨 Customizable:** Create your own buttons, colors, and icons.
+---
 
-## 🚀 Setup (Step-by-Step)
-1.  **Start PC Agent:** Run `NexusAgent.exe` on your computer.
-2.  **Connect Mobile:** Open the web interface.
-3.  **Pair:** Click "NEXUS" in the top-left. Enter the PIN code and IP address from your PC.
-4.  **You're Ready!**
+## 🏁 Quick Start (For Users)
+Don't want to deal with code? Here is how to use it:
+
+### 1. 📥 Download
+Go to the **[Releases]** section on the right side of this GitHub page and download the latest `NexusAgent.exe`.
+
+### 2. 🖱️ Run
+Run the `NexusAgent.exe` on your PC. (No installation required, portable).
+
+### 3. 📱 Connect
+1.  Open the web app on your phone.
+2.  Click the **NEXUS** logo in the top-left.
+3.  Enter the **PIN Code** and **IP Address** shown on your PC screen.
+4.  You are ready to go!
+
+---
+
+## 👨‍💻 Developer Guide (Source & Build)
+Want to contribute or build your own version?
+
+### 📂 Project Structure
+*   `/nexus_desktop`: Python backend agent running on the PC.
+*   `/src` (Root): React frontend for the mobile interface.
+
+### 🛠️ Running Agent from Source
+Instead of the EXE, you can run the raw Python code:
+
+```bash
+# Install dependencies
+pip install flask flask-cors pyinstaller psutil
+
+# Run the agent
+python nexus_desktop/main.py
+```
+
+### 📦 Build Your Own EXE
+Modified the code and want to repackage it? Use this magic command:
+
+```bash
+cd nexus_desktop
+# Package with PyInstaller (Collecting all modules)
+py -m PyInstaller --onefile --noconsole --name "NexusAgent" --paths . --collect-all services --collect-all core --collect-all utils main.py
+```
+*The output will be in the `dist/NexusAgent.exe` folder.*
+
+### 🎨 Frontend Development
+To modify the UI:
+```bash
+npm install
+npm run dev
+```
 
 ---
 [🏠 Back to Home](README.md)
