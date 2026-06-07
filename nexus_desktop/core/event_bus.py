@@ -28,11 +28,14 @@ class EventBus:
         event = Event(event_type, payload)
         self.logger.info(f"Event Published: {event_type} -> {payload}")
         
+        callbacks = []
         with self._lock:
             if event_type in self._subscribers:
-                for callback in self._subscribers[event_type]:
-                    try:
-                        # In a more advanced version, we could run these in threads
-                        callback(event)
-                    except Exception as e:
-                        self.logger.error(f"Error in subscriber for {event_type}: {e}")
+                callbacks = self._subscribers[event_type][:] # Create a copy
+        
+        # Execute callbacks outside the lock to prevent deadlocks
+        for callback in callbacks:
+            try:
+                callback(event)
+            except Exception as e:
+                self.logger.error(f"Error in subscriber for {event_type}: {e}")

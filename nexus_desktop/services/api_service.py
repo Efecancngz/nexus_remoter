@@ -3,15 +3,18 @@ from flask_cors import CORS
 import threading
 from core.service_interface import Service
 import logging
+import time
 
 # Suppress Flask logging
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
 class ApiService(Service):
-    def __init__(self, name, event_bus, security_manager):
+    def __init__(self, name, event_bus, security_manager, media_service=None):
         super().__init__(name, event_bus)
         self.security = security_manager
+        self.media_service = media_service
+        self.last_stats = {"cpu": 0, "ram": 0, "battery": "N/A", "volume": 0}
 
     def on_start(self):
         self.app = Flask(__name__)
@@ -23,6 +26,12 @@ class ApiService(Service):
         self.app.add_url_rule('/ping', 'ping', self.ping, methods=['GET'])
         self.app.add_url_rule('/pair', 'pair', self.pair, methods=['POST'])
         self.app.add_url_rule('/execute', 'execute', self.execute, methods=['POST'])
+        self.app.add_url_rule('/stats', 'stats', self.get_stats, methods=['GET'])
+        
+        # Subscribe to stats updates
+        self.bus.subscribe("SYSTEM_STATS_UPDATED", self.on_stats_update)
+        # Start proactive polling
+        self.start_stats_polling()
         
         self.log = logging.getLogger('werkzeug')
         self.log.setLevel(logging.ERROR)
@@ -61,6 +70,46 @@ class ApiService(Service):
         
         logging.info(f"[AuthSuccess] Command: {data}")
         
-        self.bus.publish("COMMAND_RECEIVED", data)
+        # Route commands to the correct service via EventBus
+        action_type = data.get('type', '')
+        
+        # Media commands → MediaService
+        if action_type == 'VOLUME_SET':
+            self.bus.publish("VOLUME_SET", data)
+        elif action_type == 'VOLUME_MUTE':
+            self.bus.publish("VOLUME_MUTE", data)
+        elif action_type == 'MEDIA_PLAY_PAUSE':
+            self.bus.publish("MEDIA_PLAY_PAUSE", data)
+        elif action_type == 'MEDIA_NEXT':
+            self.bus.publish("MEDIA_NEXT", data)
+        elif action_type == 'MEDIA_PREV':
+            self.bus.publish("MEDIA_PREV", data)
+        # Scheduler commands → SchedulerService
+        elif action_type == 'SCHEDULE_ACTION':
+            self.bus.publish("SCHEDULE_ACTION", data)
+        # All other commands → AutomationService
+        else:
+            self.bus.publish("COMMAND_RECEIVED", data)
         
         return jsonify({"success": True, "status": "queued"}), 200
+
+    def get_stats(self):
+        return jsonify(self.last_stats), 200
+
+    def on_stats_update(self, event):
+        self.last_stats = event.payload
+        # Inject volume if media service is available
+        if self.media_service:
+            self.last_stats['volume'] = self.media_service.get_volume()
+
+    def start_stats_polling(self):
+        def poll():
+            while True:
+                time.sleep(2.0)
+                self.bus.publish("GET_SYSTEM_STATS")
+        
+        t = threading.Thread(target=poll, daemon=True)
+        t.start()
+
+
+

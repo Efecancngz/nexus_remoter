@@ -41,6 +41,13 @@ export interface DashboardPage {
   buttons: ControlButton[];
 }
 
+export interface SystemStats {
+  cpu: number;
+  ram: number;
+  battery: string | { percent: number; power_plugged: boolean; secsleft: any };
+  volume?: number;
+}
+
 export interface AppState {
   currentPageId: string;
   pages: DashboardPage[];
@@ -50,4 +57,5 @@ export interface AppState {
   pcIpAddress: string;
   connectionStatus: 'online' | 'offline' | 'checking' | 'connected' | 'disconnected' | 'connecting';
   lastExecutedAction?: string;
+  systemStats?: SystemStats;
 }
