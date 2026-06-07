@@ -27,9 +27,15 @@ class TrayService(Service):
         return image
 
     def on_command(self, event):
-        # Optional: Show notification when command arrives
+        # Run notification in separate thread to prevent blocking
+        threading.Thread(target=self._show_notif, args=(event.payload.get('type'),), daemon=True).start()
+
+    def _show_notif(self, text):
         if hasattr(self, 'icon'):
-            self.icon.notify(f"Executing: {event.payload.get('type')}", "Nexus Agent")
+            try:
+                self.icon.notify(f"Executing: {text}", "Nexus Agent")
+            except Exception as e:
+                print(f"Tray notification error: {e}")
 
     def stop_app(self, icon, item):
         print("Tray exit requested.")
