@@ -90,3 +90,44 @@ export const generateMacro = async (
     throw new Error(err.message || "AI yanıt veremedi.");
   }
 };
+
+export const parseSchedulerPrompt = async (prompt: string): Promise<{ seconds: number, action: AutomationStep } | null> => {
+  const apiKey = import.meta.env.VITE_API_KEY;
+  if (!apiKey) throw new Error("API Key eksik");
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.5-flash",
+    systemInstruction: `Sen bir ZAMANLAYICI asistanısın.
+    Kullanıcı sana "1 saat sonra kapat", "30dk sonra spotifyı durdur" gibi komutlar verecek.
+    Senin görevin bunu JSON'a çevirmek.
+    
+    Çıktı Formatı:
+    {
+      "seconds": (saniye cinsinden bekleme süresi, number),
+      "action": {
+         "type": (ActionType enum),
+         "value": (komut değeri),
+         "description": (kısa açıklama)
+      }
+    }
+
+    Örnekler:
+    - "10 dakika sonra kapat" -> { "seconds": 600, "action": { "type": "COMMAND", "value": "shutdown /s /t 0", "description": "Sistem Kapatılıyor" } }
+    - "Yarım saat sonra müziği durdur" -> { "seconds": 1800, "action": { "type": "MEDIA_PLAY_PAUSE", "value": "", "description": "Müzik Durduruluyor" } }
+    - "5 dk sonra calc aç" -> { "seconds": 300, "action": { "type": "COMMAND", "value": "calc", "description": "Hesap Makinesi" } }
+
+    ActionType Enum: COMMAND, OPEN_URL, LAUNCH_APP, KEYPRESS, MEDIA_PLAY_PAUSE, MEDIA_NEXT, MEDIA_PREV, VOLUME_SET, VOLUME_MUTE
+    `
+  });
+
+  try {
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
+    const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(cleanJson);
+  } catch (e) {
+    console.error("Scheduler AI Error:", e);
+    return null;
+  }
+};

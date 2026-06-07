@@ -1,0 +1,13 @@
+services:
+  nexus-frontend:
+    build: .
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    # Standard bridge network is fine because the Browser (Client) makes the requests,
+    # not the Docker Container itself.
+
+    # To run: docker-compose up -d
+    # Access at: http://localhost:5173
