@@ -6,6 +6,9 @@ from services.automation_service import AutomationService
 from services.tray_service import TrayService
 from services.discovery_service import DiscoveryService
 from services.gui_service import GuiService
+from services.scheduler_service import SchedulerService
+from services.system_service import SystemService
+from services.media_service import MediaService
 
 import logging
 import os
@@ -18,7 +21,9 @@ else:
 
 sys.path.append(base_path)
 
-log_file = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "nexus_debug.log")
+log_dir = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "logs")
+os.makedirs(log_dir, exist_ok=True)
+log_file = os.path.join(log_dir, "nexus_debug.log")
 logging.basicConfig(
     filename=log_file,
     level=logging.DEBUG,
@@ -36,12 +41,16 @@ def main():
     sec_manager = SecurityManager()
     
     # 2. Initialize Services
+    media_service = MediaService("Media", bus)
     services = [
         AutomationService("Automation", bus),
-        ApiService("API", bus, sec_manager),
         TrayService("Tray", bus),
         DiscoveryService("Discovery", bus),
-        GuiService("GUI", bus, sec_manager)
+        GuiService("GUI", bus, sec_manager),
+        SchedulerService("Scheduler", bus),
+        SystemService("System", bus),
+        media_service, # Media
+        ApiService("API", bus, sec_manager, media_service) # API depends on Media
     ]
     
     # 3. Start Services

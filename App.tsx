@@ -1,22 +1,49 @@
-
 import React, { useState, useEffect } from 'react';
-import { AppState, ControlButton, ActionType, DashboardPage, AutomationStep } from './types';
+import { AppState, ControlButton, ActionType, AutomationStep } from './types';
 import { executor } from './services/automation';
 import { generateMacro } from './services/gemini';
-import {
-  Plus, Trash2, Cpu, Globe,
-  Gamepad2, Sparkles, X, Save, AlertCircle,
-  RefreshCw, Power, Edit3, ArrowRight, Music, Youtube, Keyboard, Settings
+import { 
+  RefreshCw, Gamepad2, Sparkles, Clock, Settings, Shield, 
+  Wifi, Cpu, Battery, Power, Volume2 
 } from 'lucide-react';
 
+// Components
+import Header from './components/Header';
+import MediaControls from './components/MediaControls';
+import ButtonGrid from './components/ButtonGrid';
+import EditModal from './components/EditModal';
+import SchedulerModal from './components/SchedulerModal';
+import SettingsPage from './components/SettingsPage';
+import ToastContainer from './components/ToastContainer';
+import ConnectScreen from './components/ConnectScreen';
+
+// Hooks
+import { useConnection } from './hooks/useConnection';
+import { useToast } from './hooks/useToast';
+
 const STORAGE_KEY = 'nexus_remote_final_v1';
+type ActiveTab = 'remote' | 'ai' | 'scheduler' | 'settings';
 
 export default function App() {
+  const connection = useConnection();
+  const { toasts, addToast, removeToast } = useToast();
+
+  const [activeTab, setActiveTab] = useState<ActiveTab>('remote');
   const [state, setState] = useState<AppState>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
+        // Automatic migration for old Spotify button configuration
+        if (parsed.pages?.[0]?.buttons) {
+          parsed.pages[0].buttons = parsed.pages[0].buttons.map((b: any) => {
+            if (b.label === 'Spotify' && b.steps?.[0]?.value === 'start spotify:') {
+              b.steps[0].type = ActionType.LAUNCH_APP;
+              b.steps[0].value = 'spotify';
+            }
+            return b;
+          });
+        }
         return { ...parsed, isExecuting: false, connectionStatus: 'disconnected' };
       } catch (e) { console.error("Restore error", e); }
     }
@@ -26,80 +53,102 @@ export default function App() {
         id: 'main',
         name: 'Nexus Remote',
         buttons: [
-          { id: '1', label: 'Spotify', color: 'bg-green-600', icon: 'MUSIC', steps: [{ id: 's1', type: ActionType.COMMAND, value: 'start spotify:', description: 'Spotify başlatılıyor' }] },
+          { id: '1', label: 'Spotify', color: 'bg-emerald-600', icon: 'MUSIC', steps: [{ id: 's1', type: ActionType.LAUNCH_APP, value: 'spotify', description: 'Spotify başlatılıyor' }] },
           { id: '2', label: 'Youtube', color: 'bg-red-600', icon: 'YOUTUBE', steps: [{ id: 's2', type: ActionType.OPEN_URL, value: 'https://youtube.com', description: 'Youtube açılıyor' }] }
         ]
       }],
       macros: [],
       isEditMode: false,
       isExecuting: false,
-      pcIpAddress: localStorage.getItem('nexus_pc_ip') || '',
+      pcIpAddress: '',
       connectionStatus: 'disconnected'
     };
   });
 
+  // UI State
   const [editingBtn, setEditingBtn] = useState<ControlButton | null>(null);
   const [aiPrompt, setAiPrompt] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiStatus, setAiStatus] = useState<string | null>(null);
-  const [lastError, setLastError] = useState<string | null>(null);
-  const [showIpModal, setShowIpModal] = useState(false);
 
-  // NEW: PIN Security
-  const [accessPin, setAccessPin] = useState(() => localStorage.getItem('nexus_access_pin') || '');
+  // Sync connection state
+  useEffect(() => {
+    setState(s => ({
+      ...s,
+      connectionStatus: connection.connectionStatus,
+      systemStats: connection.systemStats,
+      pcIpAddress: connection.pcIpAddress
+    }));
+  }, [connection.connectionStatus, connection.systemStats, connection.pcIpAddress]);
 
+  // Persist state
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    if (state.pcIpAddress) localStorage.setItem('nexus_pc_ip', state.pcIpAddress);
   }, [state]);
 
-  useEffect(() => {
-    const checkConn = async () => {
-      if (state.pcIpAddress) {
-        const ok = await executor.ping(state.pcIpAddress);
-        setState(s => ({ ...s, connectionStatus: ok ? 'connected' : 'disconnected' }));
-      }
-    };
-    checkConn();
-    const interval = setInterval(checkConn, 15000);
-    return () => clearInterval(interval);
-  }, [state.pcIpAddress]);
+  // Handle pairing from ConnectScreen
+  const handlePair = async (ip: string, pin: string) => {
+    const res = await connection.pairDevice(ip, pin);
+    if (res.success) {
+      addToast('🎉 Bilgisayar başarıyla eşleştirildi!', 'success');
+    }
+    return res;
+  };
 
+  // Media handler
+  const handleMedia = async (action: ActionType, value: string = '') => {
+    if (!connection.pcIpAddress) return;
+    try {
+      await executor.run(
+        [{ id: 'm1', type: action, value, description: 'Medya' }],
+        connection.pcIpAddress,
+        connection.accessPin
+      );
+    } catch { }
+  };
+
+  // Volume change handler (update local state immediately)
+  const handleVolumeChange = (volume: number) => {
+    if (connection.systemStats) {
+      connection.setSystemStats({ ...connection.systemStats, volume });
+    }
+  };
+
+  // Button click handler
   const handleButtonClick = async (btn: ControlButton) => {
     if (state.isEditMode) {
-      setEditingBtn(JSON.parse(JSON.stringify(btn)));
+      setEditingBtn(btn);
       return;
     }
     if (!btn.steps.length) return;
 
-    setLastError(null);
     setState(s => ({ ...s, isExecuting: true, lastExecutedAction: btn.label }));
     try {
-      // Pass the access PIN
-      const result = await executor.run(btn.steps, state.pcIpAddress, accessPin);
-
+      const result = await executor.run(btn.steps, connection.pcIpAddress, connection.accessPin);
       if (!result.success) {
         if (result.error === "AUTH_REQUIRED") {
-          setLastError("⚠️ Yetkisiz Giriş: PIN Kodunuz Hatalı!");
-          setShowIpModal(true);
+          addToast("⚠️ Yetkisiz Giriş: PIN Kodunuz Hatalı!", 'error');
+          connection.updatePin('');
         } else {
-          setLastError(result.error || "Bilinmeyen bir hata oluştu.");
+          addToast(result.error || "Bilinmeyen bir hata oluştu.", 'error');
         }
+      } else {
+        addToast(`✅ ${btn.label} çalıştırıldı`, 'success');
       }
     } catch (e: any) {
-      setLastError("Bağlantı hatası: Bilgisayar ajanı kapalı veya IP yanlış.");
+      addToast("Bağlantı hatası: Bilgisayar ajanı kapalı veya IP yanlış.", 'error');
     } finally {
       setState(s => ({ ...s, isExecuting: false }));
     }
   };
 
+  // AI Generate handler
   const handleAiGenerate = async () => {
     const promptValue = aiPrompt.trim();
     if (!promptValue || !editingBtn) return;
 
     setIsAiLoading(true);
     setAiStatus("Zekâ işleniyor...");
-    setLastError(null);
 
     try {
       const newSteps = await generateMacro(promptValue, 0, (attempt, wait) => {
@@ -109,249 +158,314 @@ export default function App() {
       if (newSteps && newSteps.length > 0) {
         setEditingBtn(prev => {
           if (!prev) return null;
-          return {
-            ...prev,
-            steps: [...prev.steps, ...newSteps]
-          };
+          return { ...prev, steps: [...prev.steps, ...newSteps] };
         });
         setAiPrompt('');
+        addToast(`✨ ${newSteps.length} aksiyon oluşturuldu`, 'success');
       } else {
-        setLastError("AI komutu anlayamadı.");
+        addToast("AI komutu anlayamadı. Daha açık yazmayı deneyin.", 'warning');
       }
     } catch (e: any) {
-      setLastError(e.message);
+      addToast(e.message, 'error');
     } finally {
       setIsAiLoading(false);
       setAiStatus(null);
     }
   };
 
-  const saveChanges = () => {
+  // Save edited button
+  const handleSaveButton = (updated: ControlButton) => {
+    setState(s => ({
+      ...s,
+      pages: s.pages.map(p => ({
+        ...p,
+        buttons: p.buttons.map(b => b.id === updated.id ? updated : b)
+      }))
+    }));
+    setEditingBtn(null);
+    addToast('Buton kaydedildi', 'success');
+  };
+
+  // Delete button
+  const handleDeleteButton = () => {
     if (!editingBtn) return;
     setState(s => ({
       ...s,
       pages: s.pages.map(p => ({
         ...p,
-        buttons: p.buttons.map(b => b.id === editingBtn.id ? editingBtn : b)
+        buttons: p.buttons.filter(b => b.id !== editingBtn.id)
       }))
     }));
     setEditingBtn(null);
+    addToast('Buton silindi', 'info');
   };
 
-  const getIcon = (name: string) => {
-    const p = { size: 24, className: "text-white" };
-    switch (name) {
-      case 'MUSIC': return <Music {...p} />;
-      case 'YOUTUBE': return <Youtube {...p} />;
-      case 'CHROME': return <Globe {...p} />;
-      case 'STEAM': return <Gamepad2 {...p} />;
-      default: return <Cpu {...p} />;
+  // Add new button
+  const handleAddButton = () => {
+    const b: ControlButton = {
+      id: Date.now().toString(),
+      label: 'YENİ',
+      color: 'bg-slate-800',
+      icon: 'DEFAULT',
+      steps: []
+    };
+    setState(s => ({
+      ...s,
+      pages: s.pages.map(p => ({ ...p, buttons: [...p.buttons, b] }))
+    }));
+  };
+
+  // Reset app
+  const handleReset = () => {
+    if (confirm("Tüm veriler sıfırlanacak. Emin misin?")) {
+      localStorage.clear();
+      location.reload();
     }
   };
 
+  // Check if connection is established. If not, show pairing lock screen.
+  const isConnected = connection.connectionStatus === 'connected' && connection.pcIpAddress && connection.accessPin;
+
+  if (!isConnected) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+        <ConnectScreen 
+          onPair={handlePair} 
+          initialIp={connection.pcIpAddress} 
+          initialPin={connection.accessPin} 
+        />
+        <ToastContainer toasts={toasts} onRemove={removeToast} />
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 select-none pb-24 overflow-x-hidden font-sans">
-      <div className="max-w-7xl mx-auto border-x border-white/5 min-h-screen shadow-2xl shadow-black">
-        <header className="p-5 flex justify-between items-center bg-slate-900/60 sticky top-0 z-40 backdrop-blur-xl border-b border-white/5">
-          <div onClick={() => setShowIpModal(true)} className="cursor-pointer group active:opacity-70 transition-opacity">
-            <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${state.connectionStatus === 'connected' ? 'bg-green-500 shadow-[0_0_12px_#22c55e]' : 'bg-red-500'}`} />
-              <h1 className="text-xl font-black tracking-tighter italic">NEXUS</h1>
+    <div className="min-h-screen bg-[#070b13] text-slate-100 font-sans relative overflow-x-hidden flex justify-center pb-20">
+      {/* Decorative Blur Backgrounds */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/5 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500/5 rounded-full blur-[120px] pointer-events-none" />
+
+      {/* Main Container - Centered and optimized for mobile screens */}
+      <div className="w-full max-w-md bg-slate-950/40 backdrop-blur-3xl min-h-screen flex flex-col border-x border-white/5 shadow-2xl relative">
+        
+        {/* HEADER */}
+        <Header
+          connectionStatus={connection.connectionStatus}
+          pcIpAddress={connection.pcIpAddress}
+          isEditMode={state.isEditMode}
+          systemStats={connection.systemStats}
+          onToggleEdit={() => setState(s => ({ ...s, isEditMode: !s.isEditMode }))}
+          onOpenScheduler={() => setActiveTab('scheduler')}
+          onOpenSettings={() => setActiveTab('settings')}
+          onOpenConnection={() => setActiveTab('settings')}
+        />
+
+        {/* TAB CONTENTS */}
+        <div className="flex-1 pb-10">
+          {activeTab === 'remote' && (
+            <div className="space-y-2 animate-in fade-in duration-200">
+              <MediaControls
+                systemStats={connection.systemStats}
+                onMediaAction={handleMedia}
+                onVolumeChange={handleVolumeChange}
+              />
+
+              <div className="px-6 flex justify-between items-center mt-2">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                  Hızlı Aksiyonlar
+                </span>
+                {state.isEditMode && (
+                  <span className="text-[10px] font-black text-orange-400 bg-orange-400/10 px-2 py-0.5 rounded-md animate-pulse">
+                    Düzenleme Modu Aktif
+                  </span>
+                )}
+              </div>
+
+              <ButtonGrid
+                buttons={state.pages[0]?.buttons || []}
+                isEditMode={state.isEditMode}
+                onButtonClick={handleButtonClick}
+                onAddButton={handleAddButton}
+              />
             </div>
-            <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">{state.pcIpAddress || 'IP AYARLA'}</span>
-          </div>
-          <button
-            onClick={() => setState(s => ({ ...s, isEditMode: !s.isEditMode }))}
-            className={`px-5 py-2 rounded-full text-[10px] font-black transition-all ${state.isEditMode ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/30' : 'bg-slate-800 text-slate-400'}`}
-          >
-            {state.isEditMode ? 'BİTTİ' : 'DÜZENLE'}
-          </button>
-        </header>
-
-        <main className="p-6 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-5">
-          {state.pages[0].buttons.map(btn => (
-            <button
-              key={btn.id}
-              onClick={() => handleButtonClick(btn)}
-              className={`${btn.color} relative aspect-square rounded-[2.5rem] flex flex-col items-center justify-center gap-2 shadow-2xl active:scale-90 transition-all border border-white/10 group overflow-hidden`}
-            >
-              <div className="p-4 bg-black/20 rounded-2xl group-hover:scale-110 transition-transform">{getIcon(btn.icon)}</div>
-              <span className="font-bold text-[11px] uppercase tracking-widest opacity-90">{btn.label}</span>
-              {state.isEditMode && (
-                <div className="absolute inset-0 bg-slate-900/80 flex items-center justify-center backdrop-blur-sm">
-                  <Edit3 className="text-cyan-400 animate-pulse" size={32} />
-                </div>
-              )}
-            </button>
-          ))}
-
-          {state.isEditMode && (
-            <button
-              onClick={() => {
-                const b = { id: Date.now().toString(), label: 'YENİ', color: 'bg-slate-800', icon: 'DEFAULT', steps: [] };
-                setState(s => ({ ...s, pages: s.pages.map(p => ({ ...p, buttons: [...p.buttons, b] })) }));
-              }}
-              className="aspect-square rounded-[2.5rem] border-2 border-dashed border-slate-700 flex items-center justify-center text-slate-500 active:bg-slate-900 transition-colors"
-            ><Plus size={40} /></button>
           )}
-        </main>
 
-        {editingBtn && (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/95 backdrop-blur-md animate-in slide-in-from-bottom duration-300">
-            <div className="bg-slate-900 w-full max-w-lg rounded-t-[3.5rem] p-8 border-t border-white/10 shadow-[0_-20px_50px_rgba(0,0,0,0.5)] max-h-[92vh] overflow-y-auto">
-              <div className="flex justify-between items-center mb-8">
-                <h2 className="text-2xl font-black italic uppercase tracking-tighter text-cyan-400">Yapılandır</h2>
-                <button onClick={() => setEditingBtn(null)} className="p-3 bg-slate-800 rounded-full text-slate-400"><X size={24} /></button>
+          {activeTab === 'ai' && (
+            <div className="p-6 space-y-6 animate-in slide-in-from-bottom duration-300">
+              <div className="flex flex-col items-center text-center gap-2 mb-2">
+                <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+                  <Sparkles size={24} className="animate-pulse" />
+                </div>
+                <h2 className="text-lg font-black italic tracking-tighter">YAPAY ZEKA KOMUTLARI</h2>
+                <p className="text-xs text-slate-400 max-w-xs leading-relaxed">
+                  Doğal dille komut verin, Gemini sizin için otomatik makrolar ve butonlar üretsin.
+                </p>
               </div>
 
-              <div className="space-y-6">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase px-1">Buton İsmi</label>
-                  <input
-                    className="w-full bg-slate-800 border border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all"
-                    value={editingBtn.label}
-                    onChange={e => setEditingBtn({ ...editingBtn, label: e.target.value })}
-                    placeholder="Buton Adı"
-                  />
-                </div>
-
-                <div className="bg-cyan-500/5 border border-cyan-500/20 p-6 rounded-[2.5rem] space-y-4">
-                  <div className="flex items-center gap-2 text-cyan-400">
-                    <Sparkles size={18} className={isAiLoading ? "animate-spin" : "animate-pulse"} />
-                    <span className="text-[10px] font-black uppercase tracking-widest">
-                      {aiStatus || "Akıllı Komut (Gemini AI)"}
-                    </span>
-                  </div>
-                  <div className="flex gap-3">
-                    <textarea
-                      className="flex-1 bg-slate-800/50 border border-slate-700 rounded-2xl p-4 text-sm outline-none h-24 resize-none placeholder:text-slate-600 focus:border-cyan-500/30 transition-colors"
-                      placeholder="Örn: spotifyı aç ve tarkan çal..."
-                      value={aiPrompt}
-                      onChange={e => setAiPrompt(e.target.value)}
-                    />
-                    <button
-                      disabled={isAiLoading}
-                      onClick={handleAiGenerate}
-                      className="bg-cyan-500 text-slate-950 p-5 rounded-2xl self-end active:scale-90 transition-all disabled:opacity-30 disabled:grayscale shadow-lg shadow-cyan-500/20"
-                    >
-                      {isAiLoading ? <RefreshCw className="animate-spin" /> : <ArrowRight size={24} />}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-500 uppercase px-1">Aksiyon Zinciri ({editingBtn.steps.length})</label>
-                  <div className="space-y-2">
-                    {editingBtn.steps.map((s, idx) => (
-                      <div key={s.id} className="bg-slate-800/40 p-4 rounded-2xl flex items-center justify-between border border-white/5 hover:bg-slate-800/60 transition-colors">
-                        <div className="flex items-center gap-4">
-                          <span className="text-[10px] font-mono text-cyan-500 bg-cyan-500/10 w-6 h-6 flex items-center justify-center rounded-md">{idx + 1}</span>
-                          <div className="text-xs font-medium text-slate-300">{s.description}</div>
-                        </div>
-                        <button onClick={() => setEditingBtn({ ...editingBtn, steps: editingBtn.steps.filter(x => x.id !== s.id) })} className="text-red-500/40 hover:text-red-500 p-1"><Trash2 size={16} /></button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex gap-4 pt-4 sticky bottom-0 bg-slate-900 pb-2">
-                  <button
-                    onClick={saveChanges}
-                    className="flex-1 bg-gradient-to-r from-orange-500 to-red-600 text-white font-black py-5 rounded-[1.8rem] flex items-center justify-center gap-2 active:scale-95 transition-all shadow-xl shadow-orange-500/20"
-                  >
-                    <Save size={20} /> KAYDET
-                  </button>
-                  <button
-                    onClick={() => {
-                      setState(s => ({ ...s, pages: s.pages.map(p => ({ ...p, buttons: p.buttons.filter(b => b.id !== editingBtn.id) })) }));
-                      setEditingBtn(null);
-                    }}
-                    className="bg-red-500/10 text-red-500 px-6 rounded-[1.8rem] hover:bg-red-500/20 active:scale-90 transition-all"
-                  ><Trash2 /></button>
-                </div>
-
-                <div className="pt-8 border-t border-white/5 text-center">
-                  <button
-                    onClick={() => {
-                      if (confirm("Tüm veriler sıfırlanacak. Emin misin?")) {
-                        localStorage.clear();
-                        location.reload();
-                      }
-                    }}
-                    className="text-[10px] font-black text-red-800 hover:text-red-500 uppercase tracking-widest transition-colors"
-                  >
-                    ⚠️ Uygulamayı Tamamen Sıfırla
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {showIpModal && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/90 backdrop-blur-md">
-            <div className="bg-slate-800 w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl border border-white/10">
-              <h2 className="text-xl font-black mb-6 italic">PC BAĞLANTISI</h2>
-              <div className="space-y-5">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase">Bilgisayar Yerel IP</label>
-                  <input
-                    type="text"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-4 text-white font-mono focus:ring-2 focus:ring-cyan-500 outline-none"
-                    value={state.pcIpAddress}
-                    onChange={e => setState({ ...state, pcIpAddress: e.target.value.trim() })}
-                    placeholder="Örn: 192.168.1.10"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase text-red-400">Güvenlik PIN Kodu</label>
-                  <input
-                    type="text"
-                    maxLength={4}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-4 text-white font-mono font-bold tracking-widest focus:ring-2 focus:ring-red-500 outline-none placeholder:tracking-normal"
-                    value={accessPin}
-                    onChange={e => setAccessPin(e.target.value.replace(/[^0-9]/g, ''))}
-                    placeholder="____"
-                  />
-                </div>
-
-                <div className="pt-2 text-xs text-slate-500">
-                  * PIN kodunu bilgisayar ekranındaki Nexus penceresinde görebilirsin.
-                </div>
-
+              <div className="bg-slate-900/60 border border-white/5 rounded-3xl p-5 space-y-4 shadow-xl">
+                <textarea
+                  className="w-full bg-slate-950/80 border border-white/5 rounded-2xl p-4 text-sm outline-none h-32 resize-none placeholder:text-slate-600 focus:border-cyan-500/30 transition-colors"
+                  placeholder="Örn: Bilgisayarın sesini kıs, youtube'u aç ve 5 saniye sonra kapat..."
+                  value={aiPrompt}
+                  onChange={e => setAiPrompt(e.target.value)}
+                />
+                
                 <button
-                  onClick={() => {
-                    localStorage.setItem('nexus_access_pin', accessPin);
-                    setShowIpModal(false);
+                  onClick={async () => {
+                    if (!aiPrompt.trim()) return;
+                    setIsAiLoading(true);
+                    try {
+                      const newSteps = await generateMacro(aiPrompt.trim());
+                      if (newSteps && newSteps.length > 0) {
+                        const newBtn: ControlButton = {
+                          id: Date.now().toString(),
+                          label: aiPrompt.trim().substring(0, 10).toUpperCase(),
+                          color: 'bg-cyan-600',
+                          icon: 'DEFAULT',
+                          steps: newSteps
+                        };
+                        setState(s => ({
+                          ...s,
+                          pages: s.pages.map(p => ({ ...p, buttons: [...p.buttons, newBtn] }))
+                        }));
+                        setAiPrompt('');
+                        addToast(`✨ '${newBtn.label}' butonu oluşturuldu`, 'success');
+                        setActiveTab('remote');
+                      } else {
+                        addToast("Komut anlaşılamadı, lütfen daha açık yazın.", 'warning');
+                      }
+                    } catch (e: any) {
+                      addToast(e.message, 'error');
+                    } finally {
+                      setIsAiLoading(false);
+                    }
                   }}
-                  className="w-full bg-cyan-500 text-slate-950 font-black py-4 rounded-2xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all"
+                  disabled={isAiLoading || !aiPrompt.trim()}
+                  className="w-full bg-cyan-500 text-slate-950 font-black py-4 rounded-2xl flex items-center justify-center gap-2 disabled:opacity-40 transition-all shadow-lg shadow-cyan-500/10 active:scale-95"
                 >
-                  KAYDET VE KAPAT
+                  {isAiLoading ? (
+                    <>
+                      <RefreshCw className="animate-spin" size={18} />
+                      Oluşturuluyor...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={18} />
+                      Buton Olarak Kaydet
+                    </>
+                  )}
                 </button>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
+          {activeTab === 'scheduler' && (
+            <div className="p-6 space-y-6 animate-in slide-in-from-bottom duration-300">
+              <div className="flex flex-col items-center text-center gap-2 mb-2">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                  <Clock size={24} />
+                </div>
+                <h2 className="text-lg font-black italic tracking-tighter">ZAMANLAYICI</h2>
+                <p className="text-xs text-slate-400 max-w-xs leading-relaxed">
+                  Belirli bir süre sonra yapılmasını istediğiniz komutu yazarak zamanlayın.
+                </p>
+              </div>
 
-
-        {state.isExecuting && (
-          <div className="fixed bottom-6 left-6 right-6 z-50 bg-cyan-500 text-slate-950 p-4 rounded-2xl flex items-center gap-4 shadow-2xl animate-pulse">
-            <RefreshCw className="animate-spin" size={20} />
-            <span className="font-black text-xs uppercase tracking-tighter">İşleniyor: {state.lastExecutedAction}</span>
-          </div>
-        )}
-
-        {lastError && (
-          <div className="fixed bottom-6 left-6 right-6 z-50 bg-red-600 text-white p-4 rounded-2xl flex items-center justify-between shadow-2xl animate-in slide-in-from-bottom">
-            <div className="flex items-center gap-3">
-              <AlertCircle size={20} />
-              <span className="text-[11px] font-bold leading-tight">{lastError}</span>
+              <SchedulerModal
+                pcIpAddress={connection.pcIpAddress}
+                accessPin={connection.accessPin}
+                onClose={() => setActiveTab('remote')}
+                onToast={addToast}
+              />
             </div>
-            <button onClick={() => setLastError(null)} className="p-1 hover:bg-white/10 rounded-lg"><X size={18} /></button>
+          )}
+
+          {activeTab === 'settings' && (
+            <div className="animate-in slide-in-from-bottom duration-300">
+              <SettingsPage
+                pcIpAddress={connection.pcIpAddress}
+                accessPin={connection.accessPin}
+                connectionStatus={connection.connectionStatus}
+                onUpdateIp={connection.updateIp}
+                onUpdatePin={connection.updatePin}
+                onClose={() => setActiveTab('remote')}
+                onToast={addToast}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* BOTTOM TAB BAR */}
+        <nav className="fixed bottom-0 left-0 right-0 z-50 flex justify-center p-3 pointer-events-none">
+          <div className="w-full max-w-md bg-slate-900/80 backdrop-blur-2xl border border-white/5 rounded-3xl p-2 flex justify-around items-center shadow-[0_10px_30px_rgba(0,0,0,0.8)] pointer-events-auto">
+            <button
+              onClick={() => setActiveTab('remote')}
+              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-2xl transition-all ${
+                activeTab === 'remote' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              <Gamepad2 size={20} />
+              <span className="text-[9px] font-black uppercase tracking-wider">Kumanda</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('ai')}
+              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-2xl transition-all ${
+                activeTab === 'ai' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              <Sparkles size={20} />
+              <span className="text-[9px] font-black uppercase tracking-wider">Gemini AI</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('scheduler')}
+              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-2xl transition-all ${
+                activeTab === 'scheduler' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              <Clock size={20} />
+              <span className="text-[9px] font-black uppercase tracking-wider">Planla</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-2xl transition-all ${
+                activeTab === 'settings' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              <Settings size={20} />
+              <span className="text-[9px] font-black uppercase tracking-wider">Ayarlar</span>
+            </button>
+          </div>
+        </nav>
+
+        {/* Edit Modal (Active only when editing a button) */}
+        {editingBtn && (
+          <EditModal
+            button={editingBtn}
+            aiPrompt={aiPrompt}
+            isAiLoading={isAiLoading}
+            aiStatus={aiStatus}
+            onAiPromptChange={setAiPrompt}
+            onAiGenerate={handleAiGenerate}
+            onSave={handleSaveButton}
+            onDelete={handleDeleteButton}
+            onClose={() => setEditingBtn(null)}
+            onReset={handleReset}
+          />
+        )}
+
+        {/* Global executing state feedback */}
+        {state.isExecuting && (
+          <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 bg-cyan-500 text-slate-950 px-4 py-2.5 rounded-full flex items-center gap-2 shadow-2xl shadow-cyan-500/20 animate-pulse">
+            <RefreshCw className="animate-spin text-slate-950" size={14} />
+            <span className="font-black text-[9px] uppercase tracking-wider">İŞLENİYOR: {state.lastExecutedAction}</span>
           </div>
         )}
+
+        {/* Toast notifications */}
+        <ToastContainer toasts={toasts} onRemove={removeToast} />
       </div>
     </div>
   );
