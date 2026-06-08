@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { AppState, ControlButton, ActionType, AutomationStep } from './types';
 import { executor } from './services/automation';
-import { generateMacro } from './services/gemini';
-import { 
-  RefreshCw, Gamepad2, Sparkles, Clock, Settings, Shield, 
-  Wifi, Cpu, Battery, Power, Volume2 
+import { generateMacro, generateMacroFromAudio } from './services/gemini';
+import {
+  RefreshCw, Gamepad2, Sparkles, Clock, Settings, Shield,
+  Wifi, Cpu, Battery, Power, Volume2
 } from 'lucide-react';
 
 // Components
@@ -16,6 +16,7 @@ import SchedulerModal from './components/SchedulerModal';
 import SettingsPage from './components/SettingsPage';
 import ToastContainer from './components/ToastContainer';
 import ConnectScreen from './components/ConnectScreen';
+import VoiceButton from './components/VoiceButton';
 
 // Hooks
 import { useConnection } from './hooks/useConnection';
@@ -105,6 +106,61 @@ export default function App() {
         connection.accessPin
       );
     } catch { }
+  };
+
+  // Voice Command Handler
+  const handleVoiceCommand = async (base64Audio: string, mimeType: string) => {
+    setState(s => ({ ...s, isExecuting: true, lastExecutedAction: 'Ses işleniyor...' }));
+    
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance("Ses analiz ediliyor...");
+      utterance.lang = 'tr-TR';
+      window.speechSynthesis.speak(utterance);
+    }
+
+    try {
+      const steps = await generateMacroFromAudio(base64Audio, mimeType);
+      if (steps && steps.length > 0) {
+        const desc = steps[0].description || "Komut uygulanıyor.";
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(desc);
+          utterance.lang = 'tr-TR';
+          window.speechSynthesis.speak(utterance);
+        }
+        
+        addToast(`🎙️ Sesli Komut: "${desc}"`, 'success');
+        
+        const result = await executor.run(steps, connection.pcIpAddress, connection.accessPin);
+        if (!result.success) {
+          if (result.error === "AUTH_REQUIRED") {
+            addToast("⚠️ Yetkisiz Giriş: PIN Kodunuz Hatalı!", 'error');
+            connection.updatePin('');
+          } else {
+            addToast(result.error || "Bilinmeyen bir hata oluştu.", 'error');
+          }
+        }
+      } else {
+        addToast("Sesli komut anlaşılamadı.", 'warning');
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance("Üzgünüm, ne dediğinizi anlayamadım.");
+          utterance.lang = 'tr-TR';
+          window.speechSynthesis.speak(utterance);
+        }
+      }
+    } catch (e: any) {
+      addToast(e.message || "Sesli komut işlenirken hata oluştu.", 'error');
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance("Sesi analiz ederken hata oluştu.");
+        utterance.lang = 'tr-TR';
+        window.speechSynthesis.speak(utterance);
+      }
+    } finally {
+      setState(s => ({ ...s, isExecuting: false }));
+    }
   };
 
   // Volume change handler (update local state immediately)
@@ -229,10 +285,10 @@ export default function App() {
   if (!isConnected) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-        <ConnectScreen 
-          onPair={handlePair} 
-          initialIp={connection.pcIpAddress} 
-          initialPin={connection.accessPin} 
+        <ConnectScreen
+          onPair={handlePair}
+          initialIp={connection.pcIpAddress}
+          initialPin={connection.accessPin}
         />
         <ToastContainer toasts={toasts} onRemove={removeToast} />
       </div>
@@ -247,7 +303,7 @@ export default function App() {
 
       {/* Main Container - Centered and optimized for mobile screens */}
       <div className="w-full max-w-md bg-slate-950/40 backdrop-blur-3xl min-h-screen flex flex-col border-x border-white/5 shadow-2xl relative">
-        
+
         {/* HEADER */}
         <Header
           connectionStatus={connection.connectionStatus}
@@ -309,7 +365,7 @@ export default function App() {
                   value={aiPrompt}
                   onChange={e => setAiPrompt(e.target.value)}
                 />
-                
+
                 <button
                   onClick={async () => {
                     if (!aiPrompt.trim()) return;
@@ -400,9 +456,8 @@ export default function App() {
           <div className="w-full max-w-md bg-slate-900/80 backdrop-blur-2xl border border-white/5 rounded-3xl p-2 flex justify-around items-center shadow-[0_10px_30px_rgba(0,0,0,0.8)] pointer-events-auto">
             <button
               onClick={() => setActiveTab('remote')}
-              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-2xl transition-all ${
-                activeTab === 'remote' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-500 hover:text-slate-300'
-              }`}
+              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-2xl transition-all ${activeTab === 'remote' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-500 hover:text-slate-300'
+                }`}
             >
               <Gamepad2 size={20} />
               <span className="text-[9px] font-black uppercase tracking-wider">Kumanda</span>
@@ -410,19 +465,23 @@ export default function App() {
 
             <button
               onClick={() => setActiveTab('ai')}
-              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-2xl transition-all ${
-                activeTab === 'ai' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-500 hover:text-slate-300'
-              }`}
+              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-2xl transition-all ${activeTab === 'ai' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-500 hover:text-slate-300'
+                }`}
             >
               <Sparkles size={20} />
               <span className="text-[9px] font-black uppercase tracking-wider">Gemini AI</span>
             </button>
 
+            {/* Central Microphone Action Button */}
+            <VoiceButton
+              onAudioReady={handleVoiceCommand}
+              onToast={addToast}
+            />
+
             <button
               onClick={() => setActiveTab('scheduler')}
-              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-2xl transition-all ${
-                activeTab === 'scheduler' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-500 hover:text-slate-300'
-              }`}
+              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-2xl transition-all ${activeTab === 'scheduler' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-500 hover:text-slate-300'
+                }`}
             >
               <Clock size={20} />
               <span className="text-[9px] font-black uppercase tracking-wider">Planla</span>
@@ -430,9 +489,8 @@ export default function App() {
 
             <button
               onClick={() => setActiveTab('settings')}
-              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-2xl transition-all ${
-                activeTab === 'settings' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-500 hover:text-slate-300'
-              }`}
+              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-2xl transition-all ${activeTab === 'settings' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-500 hover:text-slate-300'
+                }`}
             >
               <Settings size={20} />
               <span className="text-[9px] font-black uppercase tracking-wider">Ayarlar</span>
