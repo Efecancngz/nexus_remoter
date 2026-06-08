@@ -91,6 +91,98 @@ export const generateMacro = async (
   }
 };
 
+export const generateMacroFromAudio = async (
+  base64Audio: string,
+  mimeType: string,
+  retryCount = 0,
+  onRetry?: (count: number, waitTime: number) => void
+): Promise<AutomationStep[]> => {
+  const apiKey = import.meta.env.VITE_API_KEY;
+  if (!apiKey) {
+    throw new Error("API Anahtarı eksik! .env dosyasını kontrol edin.");
+  }
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.5-flash",
+    systemInstruction: `Sen NEXUS AI asistanısın. 
+    Görevin: Gelen ses kaydındaki Türkçe komutu dinlemek ve bunu bilgisayar otomasyon adımlarına çevirmek.
+    Önemli: Sadece saf JSON dizisi döndür. Başka açıklama yapma.
+    
+    Örnekler:
+    - Sesli komut: "Spotify aç" -> { type: "LAUNCH_APP", value: "start spotify:", description: "Spotify açılıyor" }
+    - Sesli komut: "Sesi kapat" -> { type: "VOLUME_MUTE", value: "true", description: "Ses kapatılıyor" }
+    - Sesli komut: "Youtube'da rahatlatıcı müzik aç" -> { type: "OPEN_URL", value: "https://www.youtube.com/results?search_query=rahatlatici+muzik", description: "Youtube'da arama yapılıyor" }
+    - Sesli komut: "Notepad aç ve Merhaba yaz" -> 
+      [
+        { type: "LAUNCH_APP", value: "notepad", description: "Notepad açılıyor" },
+        { type: "WAIT", value: "2000", description: "Pencere bekleniyor" },
+        { type: "KEYPRESS", value: "Merhaba", description: "Yazı yazılıyor" }
+      ]
+
+    Kullanılabilir Tipler: ${Object.values(ActionType).join(", ")}`
+  });
+
+  try {
+    const result = await model.generateContent({
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              inlineData: {
+                data: base64Audio,
+                mimeType: mimeType
+              }
+            },
+            {
+              text: "Lütfen bu ses kaydını dinle ve komutu bilgisayar otomasyon zincirine dönüştür."
+            }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.1,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: SchemaType.ARRAY,
+          items: {
+            type: SchemaType.OBJECT,
+            properties: {
+              type: { type: SchemaType.STRING, enum: Object.values(ActionType) },
+              value: { type: SchemaType.STRING },
+              description: { type: SchemaType.STRING }
+            },
+            required: ["type", "value", "description"]
+          }
+        }
+      }
+    });
+
+    const text = result.response.text();
+    if (!text) return [];
+
+    const rawSteps = JSON.parse(text);
+    return Array.isArray(rawSteps) ? rawSteps.map((step: any) => ({
+      ...step,
+      id: Math.random().toString(36).substring(2, 11)
+    })) : [];
+
+  } catch (err: any) {
+    const isRateLimit = err.response?.status === 429 || err.message?.includes("429") || err.message?.includes("quota") || err.message?.includes("RESOURCE_EXHAUSTED");
+
+    if (isRateLimit && retryCount < 3) {
+      const waitTime = Math.pow(2, retryCount + 1) * 1000;
+      if (onRetry) onRetry(retryCount + 1, waitTime);
+      await sleep(waitTime);
+      return generateMacroFromAudio(base64Audio, mimeType, retryCount + 1, onRetry);
+    }
+
+    console.error("Gemini Audio Error:", err);
+    throw new Error(err.message || "Sesli komut işlenemedi.");
+  }
+};
+
 export const parseSchedulerPrompt = async (prompt: string): Promise<{ seconds: number, action: AutomationStep } | null> => {
   const apiKey = import.meta.env.VITE_API_KEY;
   if (!apiKey) throw new Error("API Key eksik");
