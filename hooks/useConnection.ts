@@ -61,6 +61,7 @@ export function useConnection() {
   useEffect(() => {
     if (!pcIpAddress) return;
 
+    // 1. Connection and pairing verification (runs every 8s)
     const checkConn = async () => {
       const ok = await executor.ping(pcIpAddress);
 
@@ -69,7 +70,6 @@ export function useConnection() {
         return;
       }
 
-      // If ping succeeded, verify if our PIN is still authorized
       if (accessPin) {
         try {
           const controller = new AbortController();
@@ -83,31 +83,52 @@ export function useConnection() {
           clearTimeout(timeoutId);
 
           if (pairRes.status === 401) {
-            // PIN is invalid! Clear access pin state & localstorage so pairing locks instantly
             setAccessPin('');
             localStorage.removeItem('nexus_access_pin');
             setConnectionStatus('disconnected');
             return;
           }
         } catch {
-          // Ignore network glitch during pair check if ping succeeded
+          // Ignore network glitch during pair check
         }
       }
 
-      let stats: SystemStats | undefined;
-      try {
-        const res = await fetch(`http://${pcIpAddress}:8080/stats`);
-        if (res.ok) stats = await res.json();
-      } catch { }
-
       setConnectionStatus('connected');
-      if (stats) setSystemStats(stats);
     };
 
-    checkConn();
-    const interval = setInterval(checkConn, 5000);
-    return () => clearInterval(interval);
-  }, [pcIpAddress]);
+    // 2. Stats/Volume polling (runs every 1.5s for real-time synchronization)
+    const fetchStats = async () => {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 1200);
+        const res = await fetch(`http://${pcIpAddress}:8080/stats`, {
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          const stats = await res.json();
+          setSystemStats(stats);
+          setConnectionStatus('connected');
+        }
+      } catch {
+        // Prevent instant disconnect on single request failure to avoid flickering
+      }
+    };
+
+    // Initial check and immediate stats load
+    checkConn().then(() => {
+      fetchStats();
+    });
+
+    const connInterval = setInterval(checkConn, 8000);
+    const statsInterval = setInterval(fetchStats, 1500);
+
+    return () => {
+      clearInterval(connInterval);
+      clearInterval(statsInterval);
+    };
+  }, [pcIpAddress, accessPin]);
 
   return {
     pcIpAddress,
