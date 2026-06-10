@@ -17,6 +17,7 @@ import SettingsPage from './components/SettingsPage';
 import ToastContainer from './components/ToastContainer';
 import ConnectScreen from './components/ConnectScreen';
 import VoiceButton from './components/VoiceButton';
+import CommandPreviewModal from './components/CommandPreviewModal';
 
 // Hooks
 import { useConnection } from './hooks/useConnection';
@@ -71,6 +72,7 @@ export default function App() {
   const [aiPrompt, setAiPrompt] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiStatus, setAiStatus] = useState<string | null>(null);
+  const [previewSteps, setPreviewSteps] = useState<AutomationStep[] | null>(null);
 
   // Sync connection state
   useEffect(() => {
@@ -122,7 +124,7 @@ export default function App() {
     try {
       const steps = await generateMacroFromAudio(base64Audio, mimeType);
       if (steps && steps.length > 0) {
-        const desc = steps[0].description || "Komut uygulanıyor.";
+        const desc = steps[0].description || "Komut planlandı.";
         if ('speechSynthesis' in window) {
           window.speechSynthesis.cancel();
           const utterance = new SpeechSynthesisUtterance(desc);
@@ -131,16 +133,7 @@ export default function App() {
         }
         
         addToast(`🎙️ Sesli Komut: "${desc}"`, 'success');
-        
-        const result = await executor.run(steps, connection.pcIpAddress, connection.accessPin);
-        if (!result.success) {
-          if (result.error === "AUTH_REQUIRED") {
-            addToast("⚠️ Yetkisiz Giriş: PIN Kodunuz Hatalı!", 'error');
-            connection.updatePin('');
-          } else {
-            addToast(result.error || "Bilinmeyen bir hata oluştu.", 'error');
-          }
-        }
+        setPreviewSteps(steps); // Save steps in state to show preview modal
       } else {
         addToast("Sesli komut anlaşılamadı.", 'warning');
         if ('speechSynthesis' in window) {
@@ -158,6 +151,30 @@ export default function App() {
         utterance.lang = 'tr-TR';
         window.speechSynthesis.speak(utterance);
       }
+    } finally {
+      setState(s => ({ ...s, isExecuting: false }));
+    }
+  };
+
+  // Confirm and Execute Voice Command Steps
+  const handleConfirmVoiceCommand = async () => {
+    if (!previewSteps) return;
+    const stepsToRun = previewSteps;
+    setPreviewSteps(null); // Close modal
+    
+    setState(s => ({ ...s, isExecuting: true, lastExecutedAction: stepsToRun[0]?.description || 'Sesli komut...' }));
+    try {
+      const result = await executor.run(stepsToRun, connection.pcIpAddress, connection.accessPin);
+      if (!result.success) {
+        if (result.error === "AUTH_REQUIRED") {
+          addToast("⚠️ Yetkisiz Giriş: PIN Kodunuz Hatalı!", 'error');
+          connection.updatePin('');
+        } else {
+          addToast(result.error || "Bilinmeyen bir hata oluştu.", 'error');
+        }
+      }
+    } catch (e: any) {
+      addToast("Komut yürütülemedi. Bağlantıyı kontrol edin.", 'error');
     } finally {
       setState(s => ({ ...s, isExecuting: false }));
     }
@@ -497,6 +514,15 @@ export default function App() {
             </button>
           </div>
         </nav>
+
+        {/* Command Preview Modal */}
+        {previewSteps && (
+          <CommandPreviewModal
+            steps={previewSteps}
+            onConfirm={handleConfirmVoiceCommand}
+            onCancel={() => setPreviewSteps(null)}
+          />
+        )}
 
         {/* Edit Modal (Active only when editing a button) */}
         {editingBtn && (

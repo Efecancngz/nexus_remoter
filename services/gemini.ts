@@ -25,8 +25,9 @@ export const generateMacro = async (
     - "Spotify aç": { type: "LAUNCH_APP", value: "start spotify:", description: "Spotify açılıyor" }
     - "Sesi kapat": { type: "VOLUME_MUTE", value: "true", description: "Ses kapatılıyor" }
     - "Youtube'u aç": { type: "OPEN_URL", value: "https://youtube.com", description: "Youtube açılıyor" }
-    - "Whatsapp": { type: "LAUNCH_APP", value: "start whatsapp:", description: "Whatsapp başlatılıyor" }
-    - "DeepL aç": { type: "LAUNCH_APP", value: "DeepL", description: "DeepL başlatılıyor" }
+    - "Bilgisayarı kilitle": { type: "SYSTEM_POWER", value: "lock", description: "Bilgisayar kilitleniyor" }
+    - "Bilgisayarı kapat": { type: "SYSTEM_POWER", value: "shutdown", description: "Bilgisayar kapatılıyor" }
+    - "Bilgisayarı uyut": { type: "SYSTEM_POWER", value: "sleep", description: "Bilgisayar uyku moduna alınıyor" }
 
     Dikkat: Ardışık işlemlerde (Örn: "Notepad aç ve Merhaba yaz") araya mutlaka bekleme (WAIT) koy.
     Örnek:
@@ -113,6 +114,9 @@ export const generateMacroFromAudio = async (
     - Sesli komut: "Spotify aç" -> { type: "LAUNCH_APP", value: "start spotify:", description: "Spotify açılıyor" }
     - Sesli komut: "Sesi kapat" -> { type: "VOLUME_MUTE", value: "true", description: "Ses kapatılıyor" }
     - Sesli komut: "Youtube'da rahatlatıcı müzik aç" -> { type: "OPEN_URL", value: "https://www.youtube.com/results?search_query=rahatlatici+muzik", description: "Youtube'da arama yapılıyor" }
+    - Sesli komut: "Bilgisayarı kilitle" -> { type: "SYSTEM_POWER", value: "lock", description: "Bilgisayar kilitleniyor" }
+    - Sesli komut: "Bilgisayarı kapat" -> { type: "SYSTEM_POWER", value: "shutdown", description: "Bilgisayar kapatılıyor" }
+    - Sesli komut: "Bilgisayarı uyku moduna al" -> { type: "SYSTEM_POWER", value: "sleep", description: "Bilgisayar uyku moduna alınıyor" }
     - Sesli komut: "Notepad aç ve Merhaba yaz" -> 
       [
         { type: "LAUNCH_APP", value: "notepad", description: "Notepad açılıyor" },

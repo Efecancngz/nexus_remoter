@@ -3,6 +3,7 @@ import subprocess
 import time
 import pyautogui
 import webbrowser
+import logging
 from core.service_interface import Service
 from utils.win_search import find_installed_app
 
@@ -53,6 +54,9 @@ class AutomationService(Service):
             
             elif action_type == 'WAIT':
                 time.sleep(float(value))
+
+            elif action_type == 'SYSTEM_POWER':
+                self.handle_system_power(value)
 
             # Publish success event
             self.bus.publish("ACTION_COMPLETED", {"status": "success", "id": data.get('id')}) 
@@ -105,3 +109,16 @@ class AutomationService(Service):
             pyautogui.press(val_lower)
         else:
             pyautogui.write(value, interval=0.05)
+
+    def handle_system_power(self, value):
+        val_lower = value.lower().strip()
+        logging.info(f"[AutomationService] Executing system power action: {val_lower}")
+        if val_lower == 'lock':
+            import ctypes
+            ctypes.windll.user32.LockWorkStation()
+        elif val_lower == 'shutdown':
+            os.system("shutdown /s /t 0")
+        elif val_lower == 'restart':
+            os.system("shutdown /r /t 0")
+        elif val_lower == 'sleep':
+            os.system("rundll32.exe powrprof.dll,SetSuspendState 0,1,0")
