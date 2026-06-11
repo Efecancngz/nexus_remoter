@@ -17,8 +17,11 @@ export default function CommandPreviewModal({
 }: CommandPreviewModalProps) {
   const [timeLeft, setTimeLeft] = useState(countdownSeconds);
   const timerRef = useRef<any>(null);
+  const isAutoRunDisabled = countdownSeconds === 0;
 
   useEffect(() => {
+    if (isAutoRunDisabled) return;
+
     // Start countdown
     timerRef.current = setInterval(() => {
       setTimeLeft((prev) => {
@@ -34,7 +37,7 @@ export default function CommandPreviewModal({
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [onConfirm]);
+  }, [onConfirm, isAutoRunDisabled]);
 
   const handleCancel = () => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -78,7 +81,7 @@ export default function CommandPreviewModal({
     }
   };
 
-  const progressPercent = (timeLeft / countdownSeconds) * 100;
+  const progressPercent = isAutoRunDisabled ? 0 : (timeLeft / countdownSeconds) * 100;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
@@ -92,34 +95,43 @@ export default function CommandPreviewModal({
         {/* Header Section */}
         <div className="flex flex-col items-center text-center gap-2">
           <div className="w-14 h-14 rounded-full bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 relative">
-            {/* Spinning countdown circular border */}
-            <svg className="absolute inset-0 w-full h-full transform -rotate-90">
-              <circle
-                cx="28"
-                cy="28"
-                r="26"
-                stroke="currentColor"
-                strokeWidth="2"
-                fill="transparent"
-                className="text-cyan-500/10"
-              />
-              <circle
-                cx="28"
-                cy="28"
-                r="26"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                fill="transparent"
-                strokeDasharray="163"
-                strokeDashoffset={163 - (163 * progressPercent) / 100}
-                className="text-cyan-400 transition-all duration-1000 ease-linear"
-              />
-            </svg>
-            <span className="font-mono text-lg font-black">{timeLeft}</span>
+            {isAutoRunDisabled ? (
+              <Clock size={22} className="animate-pulse" />
+            ) : (
+              <>
+                {/* Spinning countdown circular border */}
+                <svg className="absolute inset-0 w-full h-full transform -rotate-90">
+                  <circle
+                    cx="28"
+                    cy="28"
+                    r="26"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    fill="transparent"
+                    className="text-cyan-500/10"
+                  />
+                  <circle
+                    cx="28"
+                    cy="28"
+                    r="26"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    fill="transparent"
+                    strokeDasharray="163"
+                    strokeDashoffset={163 - (163 * progressPercent) / 100}
+                    className="text-cyan-400 transition-all duration-1000 ease-linear"
+                  />
+                </svg>
+                <span className="font-mono text-lg font-black">{timeLeft}</span>
+              </>
+            )}
           </div>
           <h3 className="text-base font-black italic tracking-tight text-white mt-1">YAPAY ZEKA KOMUT PLANI</h3>
           <p className="text-[11px] text-slate-400 leading-relaxed max-w-[240px]">
-            Sesli komutunuz analiz edildi. {timeLeft} saniye içinde otomatik çalıştırılacak.
+            {isAutoRunDisabled 
+              ? "Sesli komutunuz analiz edildi. Çalıştırmak için lütfen onaylayın."
+              : `Sesli komutunuz analiz edildi. ${timeLeft} saniye içinde otomatik çalıştırılacak.`
+            }
           </p>
         </div>
 
