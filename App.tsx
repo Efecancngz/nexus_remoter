@@ -74,6 +74,39 @@ export default function App() {
   const [aiStatus, setAiStatus] = useState<string | null>(null);
   const [previewSteps, setPreviewSteps] = useState<AutomationStep[] | null>(null);
 
+  // Voice Remote settings with localStorage persistence
+  const [voiceFeedback, setVoiceFeedback] = useState(() => {
+    const saved = localStorage.getItem('nexus_voice_feedback');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [hapticFeedback, setHapticFeedback] = useState(() => {
+    const saved = localStorage.getItem('nexus_haptic_feedback');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [countdownDuration, setCountdownDuration] = useState(() => {
+    const saved = localStorage.getItem('nexus_countdown_duration');
+    return saved !== null ? Number(saved) : 5;
+  });
+
+  const handleUpdateVoiceFeedback = (val: boolean) => {
+    setVoiceFeedback(val);
+    localStorage.setItem('nexus_voice_feedback', String(val));
+  };
+  const handleUpdateHapticFeedback = (val: boolean) => {
+    setHapticFeedback(val);
+    localStorage.setItem('nexus_haptic_feedback', String(val));
+  };
+  const handleUpdateCountdownDuration = (val: number) => {
+    setCountdownDuration(val);
+    localStorage.setItem('nexus_countdown_duration', String(val));
+  };
+
+  const triggerHaptic = (pattern: number | number[]) => {
+    if (hapticFeedback && navigator.vibrate) {
+      navigator.vibrate(pattern);
+    }
+  };
+
   // Sync connection state
   useEffect(() => {
     setState(s => ({
@@ -114,7 +147,7 @@ export default function App() {
   const handleVoiceCommand = async (base64Audio: string, mimeType: string) => {
     setState(s => ({ ...s, isExecuting: true, lastExecutedAction: 'Ses işleniyor...' }));
     
-    if ('speechSynthesis' in window) {
+    if (voiceFeedback && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance("Ses analiz ediliyor...");
       utterance.lang = 'tr-TR';
@@ -125,7 +158,7 @@ export default function App() {
       const steps = await generateMacroFromAudio(base64Audio, mimeType);
       if (steps && steps.length > 0) {
         const desc = steps[0].description || "Komut planlandı.";
-        if ('speechSynthesis' in window) {
+        if (voiceFeedback && 'speechSynthesis' in window) {
           window.speechSynthesis.cancel();
           const utterance = new SpeechSynthesisUtterance(desc);
           utterance.lang = 'tr-TR';
@@ -136,7 +169,7 @@ export default function App() {
         setPreviewSteps(steps); // Save steps in state to show preview modal
       } else {
         addToast("Sesli komut anlaşılamadı.", 'warning');
-        if ('speechSynthesis' in window) {
+        if (voiceFeedback && 'speechSynthesis' in window) {
           window.speechSynthesis.cancel();
           const utterance = new SpeechSynthesisUtterance("Üzgünüm, ne dediğinizi anlayamadım.");
           utterance.lang = 'tr-TR';
@@ -145,7 +178,7 @@ export default function App() {
       }
     } catch (e: any) {
       addToast(e.message || "Sesli komut işlenirken hata oluştu.", 'error');
-      if ('speechSynthesis' in window) {
+      if (voiceFeedback && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance("Sesi analiz ederken hata oluştu.");
         utterance.lang = 'tr-TR';
@@ -166,14 +199,18 @@ export default function App() {
     try {
       const result = await executor.run(stepsToRun, connection.pcIpAddress, connection.accessPin);
       if (!result.success) {
+        triggerHaptic(200); // Vibrate on error: 1 long pulse
         if (result.error === "AUTH_REQUIRED") {
           addToast("⚠️ Yetkisiz Giriş: PIN Kodunuz Hatalı!", 'error');
           connection.updatePin('');
         } else {
           addToast(result.error || "Bilinmeyen bir hata oluştu.", 'error');
         }
+      } else {
+        triggerHaptic([45, 55, 45]); // Vibrate on success: double brief pulse
       }
     } catch (e: any) {
+      triggerHaptic(200);
       addToast("Komut yürütülemedi. Bağlantıyı kontrol edin.", 'error');
     } finally {
       setState(s => ({ ...s, isExecuting: false }));
@@ -195,10 +232,13 @@ export default function App() {
     }
     if (!btn.steps.length) return;
 
+    triggerHaptic(35); // Vibrate briefly on button touch/press
+
     setState(s => ({ ...s, isExecuting: true, lastExecutedAction: btn.label }));
     try {
       const result = await executor.run(btn.steps, connection.pcIpAddress, connection.accessPin);
       if (!result.success) {
+        triggerHaptic(200); // Vibrate heavy on error
         if (result.error === "AUTH_REQUIRED") {
           addToast("⚠️ Yetkisiz Giriş: PIN Kodunuz Hatalı!", 'error');
           connection.updatePin('');
@@ -207,8 +247,10 @@ export default function App() {
         }
       } else {
         addToast(`✅ ${btn.label} çalıştırıldı`, 'success');
+        triggerHaptic([40, 50, 40]); // Vibrate double brief on success
       }
     } catch (e: any) {
+      triggerHaptic(200);
       addToast("Bağlantı hatası: Bilgisayar ajanı kapalı veya IP yanlış.", 'error');
     } finally {
       setState(s => ({ ...s, isExecuting: false }));
@@ -463,6 +505,12 @@ export default function App() {
                 onUpdatePin={connection.updatePin}
                 onClose={() => setActiveTab('remote')}
                 onToast={addToast}
+                voiceFeedback={voiceFeedback}
+                hapticFeedback={hapticFeedback}
+                countdownDuration={countdownDuration}
+                onUpdateVoiceFeedback={handleUpdateVoiceFeedback}
+                onUpdateHapticFeedback={handleUpdateHapticFeedback}
+                onUpdateCountdownDuration={handleUpdateCountdownDuration}
               />
             </div>
           )}
@@ -493,6 +541,7 @@ export default function App() {
             <VoiceButton
               onAudioReady={handleVoiceCommand}
               onToast={addToast}
+              hapticEnabled={hapticFeedback}
             />
 
             <button
@@ -521,6 +570,7 @@ export default function App() {
             steps={previewSteps}
             onConfirm={handleConfirmVoiceCommand}
             onCancel={() => setPreviewSteps(null)}
+            countdownSeconds={countdownDuration}
           />
         )}
 
