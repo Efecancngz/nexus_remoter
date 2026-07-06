@@ -48,7 +48,7 @@ class MediaService(Service):
             # Initialize COM for this thread
             comtypes.CoInitialize()
             
-            level = int(event.payload.get('value', 50))
+            level = int((event.payload or {}).get('value', 50))
             # Clamp between 0 and 100
             level = max(0, min(100, level))
             

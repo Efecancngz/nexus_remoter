@@ -85,6 +85,26 @@ def test_set_volume_clamps_and_sets_scalar(monkeypatch, service):
     assert calls == [1.0]
 
 
+def test_set_volume_without_payload_uses_default_50(monkeypatch, service):
+    svc, _ = service
+    monkeypatch.setattr(media_service_module, "PYCAW_AVAILABLE", True)
+    monkeypatch.setattr(media_service_module, "comtypes", type(
+        "FakeComtypes", (), {"CoInitialize": staticmethod(lambda: None), "CoUninitialize": staticmethod(lambda: None)}
+    )())
+
+    calls = []
+
+    class FakeVolumeInterface:
+        def SetMasterVolumeLevelScalar(self, scalar, _):
+            calls.append(scalar)
+
+    monkeypatch.setattr(svc, "_get_volume_interface", lambda: FakeVolumeInterface())
+
+    svc.set_volume(Event("VOLUME_SET"))
+
+    assert calls == [0.5]
+
+
 def test_set_volume_swallows_interface_errors(monkeypatch, service):
     svc, _ = service
     monkeypatch.setattr(media_service_module, "PYCAW_AVAILABLE", True)
