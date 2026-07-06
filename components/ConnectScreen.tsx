@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Shield, Wifi, Loader2, ArrowRight, ExternalLink } from 'lucide-react';
-import { buildAgentUrl } from '../services/agentUrl';
+import { buildAgentUrl, sanitizeIp } from '../services/agentUrl';
 
 interface ConnectScreenProps {
   onPair: (ip: string, pin: string) => Promise<{ success: boolean; error?: string }>;
@@ -14,7 +14,9 @@ export default function ConnectScreen({ onPair, initialIp = '', initialPin = '' 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const trustUrl = ip.trim() ? buildAgentUrl(ip, '/') : null;
+  // buildAgentUrl throws on an IP that sanitizes to empty (e.g. the user has
+  // typed exactly "http://" so far), which must not crash the render.
+  const trustUrl = sanitizeIp(ip) ? buildAgentUrl(ip, '/') : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
