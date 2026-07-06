@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { SkipBack, SkipForward, Play, Pause, Speaker, VolumeX, Volume2 } from 'lucide-react';
 import { ActionType, SystemStats } from '../types';
 
@@ -13,19 +13,81 @@ export default function MediaControls({ systemStats, onMediaAction, onVolumeChan
   const [volume, setVolume] = useState(serverVol);
   const [isMuted, setIsMuted] = useState(false);
 
-  // Sync with server volume changes unless the user has local changes
+  // Refs for throttling and user interaction tracking
+  const lastSentVolumeRef = useRef<number>(serverVol);
+  const lastSentTimeRef = useRef<number>(0);
+  const throttleTimeoutRef = useRef<any>(null);
+  const isDraggingRef = useRef<boolean>(false);
+  const lastInteractionTimeRef = useRef<number>(0);
+
+  // Sync with server volume changes unless the user has local changes/interaction recently
   useEffect(() => {
-    setVolume(serverVol);
+    const now = Date.now();
+    if (!isDraggingRef.current && (now - lastInteractionTimeRef.current > 3000)) {
+      setVolume(serverVol);
+      lastSentVolumeRef.current = serverVol;
+    }
   }, [serverVol]);
+
+  // Clean up timers on unmount
+  useEffect(() => {
+    return () => {
+      if (throttleTimeoutRef.current) clearTimeout(throttleTimeoutRef.current);
+    };
+  }, []);
+
+  const sendVolumeChange = (val: number) => {
+    if (val === lastSentVolumeRef.current) return;
+    
+    const now = Date.now();
+    const timeSinceLastSent = now - lastSentTimeRef.current;
+    
+    // Clear any scheduled delayed send
+    if (throttleTimeoutRef.current) {
+      clearTimeout(throttleTimeoutRef.current);
+      throttleTimeoutRef.current = null;
+    }
+
+    if (timeSinceLastSent > 150) {
+      // Send immediately if throttle period has passed
+      onMediaAction(ActionType.VOLUME_SET, String(val));
+      lastSentTimeRef.current = now;
+      lastSentVolumeRef.current = val;
+    } else {
+      // Otherwise schedule it for the end of the throttle window
+      const delay = 150 - timeSinceLastSent;
+      throttleTimeoutRef.current = setTimeout(() => {
+        onMediaAction(ActionType.VOLUME_SET, String(val));
+        lastSentTimeRef.current = Date.now();
+        lastSentVolumeRef.current = val;
+      }, delay);
+    }
+  };
 
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = Number(e.target.value);
+    isDraggingRef.current = true;
+    lastInteractionTimeRef.current = Date.now();
+    
     setVolume(val);
-    onVolumeChange(val); // Update local app state for immediate indicator sync
+    onVolumeChange(val); // Update local state for immediate sync
+    
+    sendVolumeChange(val);
   };
 
   const handleDragEnd = () => {
-    onMediaAction(ActionType.VOLUME_SET, String(volume));
+    isDraggingRef.current = false;
+    lastInteractionTimeRef.current = Date.now();
+    
+    // Ensure the final selected value is sent
+    if (volume !== lastSentVolumeRef.current) {
+      if (throttleTimeoutRef.current) {
+        clearTimeout(throttleTimeoutRef.current);
+        throttleTimeoutRef.current = null;
+      }
+      onMediaAction(ActionType.VOLUME_SET, String(volume));
+      lastSentVolumeRef.current = volume;
+    }
   };
 
   const handleMuteToggle = () => {

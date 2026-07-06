@@ -4,12 +4,12 @@ import { parseSchedulerPrompt } from '../services/gemini';
 
 interface SchedulerModalProps {
   pcIpAddress: string;
-  accessPin: string;
+  accessToken: string;
   onClose: () => void;
   onToast: (message: string, type: 'success' | 'error' | 'info' | 'warning') => void;
 }
 
-export default function SchedulerModal({ pcIpAddress, accessPin, onClose, onToast }: SchedulerModalProps) {
+export default function SchedulerModal({ pcIpAddress, accessToken, onClose, onToast }: SchedulerModalProps) {
   const [prompt, setPrompt] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -21,18 +21,20 @@ export default function SchedulerModal({ pcIpAddress, accessPin, onClose, onToas
     setPrompt("Zekâ işleniyor...");
     
     try {
-      const plan = await parseSchedulerPrompt(originalText);
+      const plan = await parseSchedulerPrompt(originalText, pcIpAddress, accessToken);
       if (plan) {
         const minutes = Math.round(plan.seconds / 60);
 
         await fetch(`http://${pcIpAddress}:8080/execute`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Nexus-Token': accessToken
+          },
           body: JSON.stringify({
             type: 'SCHEDULE_ACTION',
             seconds: plan.seconds,
-            action: plan.action,
-            pin: accessPin
+            action: plan.action
           })
         });
         

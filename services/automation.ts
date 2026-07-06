@@ -17,7 +17,7 @@ export class ActionExecutor {
     return ip.replace(/^https?:\/\//, '').replace(/\/$/, '').trim();
   }
 
-  async run(steps: AutomationStep[], ip: string, pin?: string): Promise<{ success: boolean; error?: string }> {
+  async run(steps: AutomationStep[], ip: string, token?: string): Promise<{ success: boolean; error?: string }> {
     if (!ip) return { success: false, error: "Lütfen ayarlardan PC IP adresini girin." };
 
     const cleanIp = this.sanitizeIp(ip);
@@ -37,14 +37,14 @@ export class ActionExecutor {
         const response = await fetch(`http://${cleanIp}:8080/execute`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'X-Nexus-Token': token || ''
           },
           body: JSON.stringify({
             id: step.id,
             type: step.type,
             value: step.value,
-            description: step.description,
-            pin: pin || '' // Send PIN in body
+            description: step.description
           })
         });
 

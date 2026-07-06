@@ -4,6 +4,7 @@ from core.service_interface import Service
 
 # Optional pycaw imports
 try:
+    import comtypes
     from comtypes import CLSCTX_ALL
     from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
     PYCAW_AVAILABLE = True
@@ -27,6 +28,17 @@ class MediaService(Service):
         logging.info(f"Media Key: {key}")
         pyautogui.press(key)
 
+    def _get_volume_interface(self):
+        devices = AudioUtilities.GetSpeakers()
+        if hasattr(devices, 'EndpointVolume'):
+            return devices.EndpointVolume
+        elif hasattr(devices, 'device'):
+            interface = devices.device.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+            return interface.QueryInterface(IAudioEndpointVolume)
+        else:
+            interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+            return interface.QueryInterface(IAudioEndpointVolume)
+
     def set_volume(self, event):
         if not PYCAW_AVAILABLE:
             logging.warning("pycaw not installed, cannot set specific volume")
@@ -34,16 +46,13 @@ class MediaService(Service):
 
         try:
             # Initialize COM for this thread
-            import comtypes
             comtypes.CoInitialize()
             
             level = int(event.payload.get('value', 50))
             # Clamp between 0 and 100
             level = max(0, min(100, level))
             
-            devices = AudioUtilities.GetSpeakers()
-            interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
-            volume = interface.QueryInterface(IAudioEndpointVolume)
+            volume = self._get_volume_interface()
             
             # Scalar volume is 0.0 to 1.0
             scalar = level / 100.0
@@ -65,12 +74,9 @@ class MediaService(Service):
 
         try:
             # Initialize COM for this thread
-            import comtypes
             comtypes.CoInitialize()
 
-            devices = AudioUtilities.GetSpeakers()
-            interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
-            volume = interface.QueryInterface(IAudioEndpointVolume)
+            volume = self._get_volume_interface()
             
             current = volume.GetMute()
             volume.SetMute(not current, None)
@@ -80,7 +86,7 @@ class MediaService(Service):
             logging.error(f"Mute error: {e}")
         finally:
             try:
-                import comtypes
+                comtypes.CoUninitialize()
             except:
                 pass
 
@@ -89,11 +95,8 @@ class MediaService(Service):
         if not PYCAW_AVAILABLE:
             return 0
         try:
-            import comtypes
             comtypes.CoInitialize()
-            devices = AudioUtilities.GetSpeakers()
-            interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
-            volume = interface.QueryInterface(IAudioEndpointVolume)
+            volume = self._get_volume_interface()
             
             # Scalar is 0.0 to 1.0
             scalar = volume.GetMasterVolumeLevelScalar()
@@ -104,7 +107,6 @@ class MediaService(Service):
             return 0
         finally:
             try:
-                import comtypes
                 comtypes.CoUninitialize()
             except:
                 pass

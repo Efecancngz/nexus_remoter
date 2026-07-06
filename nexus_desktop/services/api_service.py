@@ -1,9 +1,12 @@
+# pyrefly: ignore [missing-import]
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import threading
 from core.service_interface import Service
+from services.ai_service import AiService
 import logging
 import time
+import ipaddress
 
 # Suppress Flask logging
 log = logging.getLogger('werkzeug')
@@ -18,16 +21,28 @@ class ApiService(Service):
 
     def on_start(self):
         self.app = Flask(__name__)
+        # Allow cross-origin use from the mobile web app while still relying on the
+        # session token for authorization. The token lives in the legit app's
+        # per-origin storage, so a hostile site cannot read it even with CORS open.
         CORS(self.app)
-        
+
+        # Reject requests whose Host header is a domain name (DNS-rebinding
+        # attempts). Legitimate clients always connect to the agent by raw LAN IP
+        # or localhost, so a hostname there means someone rebound a domain to us.
+        self.app.before_request(self._reject_rebinding)
+
         # Security instance is now injected via __init__
-        
+
         # Define routes
         self.app.add_url_rule('/ping', 'ping', self.ping, methods=['GET'])
         self.app.add_url_rule('/pair', 'pair', self.pair, methods=['POST'])
+        self.app.add_url_rule('/verify', 'verify', self.verify, methods=['GET'])
         self.app.add_url_rule('/execute', 'execute', self.execute, methods=['POST'])
         self.app.add_url_rule('/stats', 'stats', self.get_stats, methods=['GET'])
-        
+
+        # Server-side Gemini proxy (keeps the API key off the client)
+        AiService(self.security).register(self.app)
+
         # Subscribe to stats updates
         self.bus.subscribe("SYSTEM_STATS_UPDATED", self.on_stats_update)
         # Start proactive polling
@@ -40,6 +55,17 @@ class ApiService(Service):
         self._thread = threading.Thread(target=self._run_server, daemon=True)
         self._thread.start()
 
+    def _reject_rebinding(self):
+        host = (request.host or '').split(':')[0].strip()
+        if host in ('localhost', ''):
+            return None
+        try:
+            ipaddress.ip_address(host)
+        except ValueError:
+            logging.warning("[Security] Rejected request with non-IP Host header: %r", host)
+            return jsonify({"success": False, "error": "Invalid host"}), 403
+        return None
+
     def _run_server(self):
         self.app.run(host='0.0.0.0', port=8080, debug=False, use_reloader=False)
 
@@ -50,28 +76,31 @@ class ApiService(Service):
         return jsonify({"status": "ok", "mode": "desktop_agent", "secured": True}), 200
 
     def pair(self):
-        """Endpoint to verify PIN and maybe exchange keys in future"""
+        """Verify the pairing PIN and issue a session token."""
         data = request.json
         incoming_pin = data.get('pin')
-        
-        if self.security.validate(incoming_pin):
-            return jsonify({"success": True, "message": "Paired successfully"}), 200
+
+        if self.security.validate_pin(incoming_pin):
+            token = self.security.issue_token()
+            return jsonify({"success": True, "message": "Paired successfully", "token": token}), 200
         else:
             return jsonify({"success": False, "message": "Invalid PIN"}), 401
 
+    def _authorized(self):
+        return self.security.validate_token(request.headers.get('X-Nexus-Token'))
+
     def execute(self):
         data = request.json
-        incoming_pin = data.get('pin') or request.headers.get('X-Nexus-PIN')
-        
+
         # Enforce Security
-        if not self.security.validate(incoming_pin):
-             logging.warning(f"[AuthFail] Expected: '{self.security.pin}' | Received: '{incoming_pin}'")
-             return jsonify({"success": False, "error": "Unauthorized: Invalid PIN"}), 401
-        
-        logging.info(f"[AuthSuccess] Command: {data}")
-        
-        # Route commands to the correct service via EventBus
+        if not self._authorized():
+             logging.warning("[AuthFail] Rejected /execute request with invalid credentials")
+             return jsonify({"success": False, "error": "Unauthorized: Invalid or missing token"}), 401
+
         action_type = data.get('type', '')
+        logging.info("[AuthSuccess] Command accepted: type=%s", action_type)
+
+        # Route commands to the correct service via EventBus
         
         # Media commands → MediaService
         if action_type == 'VOLUME_SET':
@@ -93,7 +122,15 @@ class ApiService(Service):
         
         return jsonify({"success": True, "status": "queued"}), 200
 
+    def verify(self):
+        """Lightweight session-token check for the client's periodic heartbeat."""
+        if self._authorized():
+            return jsonify({"success": True}), 200
+        return jsonify({"success": False}), 401
+
     def get_stats(self):
+        if not self._authorized():
+            return jsonify({"success": False, "error": "Unauthorized"}), 401
         return jsonify(self.last_stats), 200
 
     def on_stats_update(self, event):
