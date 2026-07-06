@@ -187,6 +187,7 @@ def test_macro_success_returns_steps(monkeypatch):
     assert body['success'] is True
     assert body['steps'] == [{"type": "LAUNCH_APP", "value": "spotify", "description": "Spotify aciliyor"}]
     assert FakeGenerativeModel.last_instance.last_contents == 'spotify ac'
+    assert 'response_schema' in FakeGenerativeModel.last_instance.generation_config
 
 
 def test_audio_success_decodes_and_returns_steps(monkeypatch):
@@ -220,6 +221,7 @@ def test_schedule_success_returns_plan(monkeypatch):
     body = res.get_json()
     assert body['success'] is True
     assert body['plan']['seconds'] == 600
+    assert 'response_schema' not in FakeGenerativeModel.last_instance.generation_config
 
 
 # --- Upstream failure handling ---
