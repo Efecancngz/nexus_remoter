@@ -14,7 +14,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "argv", [str(tmp_path / "NexusAgent.exe")])
     bus = EventBus()
     sec = SecurityManager()
-    svc = ApiService("API", bus, sec)
+    svc = ApiService("API", bus, sec, start_server=False)
     svc.on_start()
     svc.app.testing = True
     return svc.app.test_client(), sec
