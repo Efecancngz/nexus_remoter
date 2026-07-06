@@ -1,29 +1,44 @@
 # Security notes
 
-## Transport: plaintext HTTP on the LAN (by design, for now)
+## Transport: self-signed TLS on the LAN
 
-The desktop agent (`nexus_desktop`) serves its API on `http://<pc-ip>:8080` with
-no TLS. This is a deliberate, documented trade-off, not an oversight:
+The desktop agent serves its API on `https://<pc-ip>:8080` using a
+self-signed certificate the agent generates on first run (`CertStore`,
+`nexus_desktop/core/cert_store.py`). The certificate's Subject Alternative
+Names cover the agent's current LAN IP, `127.0.0.1`, and `localhost`, with a
+10-year validity window.
 
-- The mobile client connects to a raw LAN IP, not a domain name, so a
-  browser-trusted certificate isn't obtainable without either a private CA
-  installed on every phone or a public cert bound to a hostname the agent
-  doesn't have. Both add real setup friction for a single-user, single-LAN tool.
-- **Risk this leaves open:** anyone who can observe traffic on the same LAN/WiFi
-  (e.g. a compromised AP, another device running a packet sniffer) can read
-  session tokens and command payloads in transit, and a man-in-the-middle on
-  the network could inject or alter commands sent to the agent.
-- **Mitigations already in place:** the PIN is only used once per pairing
-  (never resent), the session token is only sent to the agent's own origin
-  (not embedded in URLs or logs), and `/execute` rejects DNS-rebinding attempts
-  via Host-header validation (`api_service.py`).
-- **Recommendation:** only run this on a trusted home/personal network. Avoid
-  public or shared WiFi. If you need protection on hostile networks, put the
-  agent behind a VPN (e.g. Tailscale/WireGuard) rather than exposing port 8080
-  directly — that also sidesteps the certificate problem entirely.
-
-TLS support may be revisited later (e.g. via a VPN overlay providing implicit
-mTLS, or a self-signed cert with a documented per-device trust step).
+- **Why self-signed instead of a real cert:** the client connects to a raw
+  LAN IP, not a domain name, so a browser-trusted certificate isn't
+  obtainable without either a private CA installed on every device or a
+  public cert bound to a hostname the agent doesn't have. Both add real
+  setup friction for a single-user, single-LAN tool.
+- **Trust step:** a device must accept the certificate once before pairing
+  will work — open `https://<pc-ip>:8080/` directly (a link for this is
+  shown in the app's connect screen), accept the browser's warning, then
+  return to the app. This is a one-time step per device. iOS Safari has
+  known rough edges trusting a self-signed cert inside an installed
+  (standalone) PWA specifically; if pairing fails after accepting the
+  warning, try opening the trust link in a normal Safari tab first.
+- **Cert regeneration:** the agent regenerates its certificate automatically
+  if its LAN IP changes (e.g. a new DHCP lease) or if the existing cert/key
+  files are missing, corrupt, or expired. An IP change requires re-accepting
+  the certificate once on each device; this is only checked at agent
+  startup, so a mid-session IP change requires an agent restart before the
+  new cert takes effect.
+- **Private key storage:** `data/certs/agent.key` is not given restricted
+  OS-level permissions beyond defaults — the agent runs as the logged-in
+  user, and the key is no more sensitive than the session that user already
+  has.
+- **Mitigations already in place, now layered under TLS:** the PIN is only
+  used once per pairing (never resent), the session token is only sent to
+  the agent's own origin, and `/execute` rejects DNS-rebinding attempts via
+  Host-header validation (`api_service.py`).
+- **If you need protection on hostile networks** beyond what a single
+  device's self-signed trust provides, put the agent behind a VPN (e.g.
+  Tailscale/WireGuard) in addition to this — a VPN alone does not replace
+  TLS here, since the client's HTTPS-hosted PWA still cannot make a mixed-content
+  plaintext request regardless of what network layer carries it.
 
 ## Auth model
 
