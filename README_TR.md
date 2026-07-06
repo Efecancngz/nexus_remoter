@@ -18,8 +18,9 @@ GitHub sayfasının sağ tarafındaki **[Releases]** kısmından en son sürüm 
 ### 3. 📱 Bağlan
 1.  Telefondan web arayüzüne girin.
 2.  Sol üstteki **NEXUS** logosuna tıklayın.
-3.  Bilgisayar ekranında gördüğünüz **PIN Kodunu** ve **IP Adresini** telefona girin.
-4.  Artık bilgisayarınızı yönetebilirsiniz!
+3.  Bilgisayar ekranında gördüğünüz **IP Adresini** girin.
+4.  **Bu cihazda ilk bağlantı mı?** IP alanının altında beliren "sertifikayı onaylayın" bağlantısına dokunun (`https://<pc-ip>:8080/` adresini açar), tarayıcının güvenlik uyarısını bir kez kabul edin ve geri dönün. Ajan kendinden imzalı bir HTTPS sertifikası kullanır; bu adım her cihaz için bir kez gereklidir. Ayrıntılar için [SECURITY.md](SECURITY.md) dosyasına bakın — iOS'ta ana ekrana eklenmiş (PWA) modda bu onay adımı şu an desteklenmiyor.
+5.  PC ekranındaki **PIN Kodunu** girip bağlanın. Artık bilgisayarınızı yönetebilirsiniz!
 
 ---
 
@@ -35,16 +36,19 @@ EXE kullanmak yerine Python kodlarını doğrudan çalıştırabilirsiniz:
 
 ```bash
 # Gereksinimleri yükle
-pip install flask flask-cors pyinstaller psutil
+pip install -r requirements.txt
 
 # Ajanı başlat
 python nexus_desktop/main.py
 ```
 
+Yapay zeka özellikleri (ses/makro üretimi) için depo kök dizininde `GEMINI_API_KEY="anahtarınız"` içeren bir `.env` dosyası oluşturun — anahtar bilgisayarda kalır, telefona asla gönderilmez. Ajan ilk açılışta `data/certs/` altında kendinden imzalı bir TLS sertifikasını da otomatik oluşturur.
+
 ### 📦 Kendi EXE Dosyanızı Oluşturun (Build)
 Kodu değiştirdiniz ve arkadaşlarınızla paylaşmak için tekrar EXE yapmak mı istiyorsunuz? İşte sihirli komut:
 
 ```bash
+pip install pyinstaller
 cd nexus_desktop
 # PyInstaller ile paketle (Tüm modülleri gömerek)
 py -m PyInstaller --onefile --noconsole --name "NexusAgent" --paths . --collect-all services --collect-all core --collect-all utils main.py
