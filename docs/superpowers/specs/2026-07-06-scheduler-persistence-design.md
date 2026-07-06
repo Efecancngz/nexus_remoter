@@ -21,16 +21,25 @@ dropping) risks the user believing a schedule is still active when it is not.
 
 ### Storage
 
-A flat JSON file at `<agent base dir>/data/schedules.json`, using the same
-path-resolution approach as `main.py` (`sys.argv[0]` directory) so it works
-identically from source and from the frozen `.exe`. Job volume is always small
-(a handful of pending timers for a single-user desktop tool), so a JSON file is
-simpler and more inspectable than a database.
+A flat JSON file at `data/schedules.json`, rooted at
+`os.path.dirname(os.path.abspath(sys.argv[0]))` — the **same** path strategy
+`main.py` uses for `logs/` (`main.py:33`), not the `base_path`/`sys._MEIPASS`
+strategy used for locating bundled modules (`main.py:8-11`). This distinction
+matters: `sys._MEIPASS` is a temporary extraction directory in a frozen
+`.exe`, so writing persisted state there would silently vanish on every
+restart, defeating the entire feature. Job volume is always small (a handful
+of pending timers for a single-user desktop tool), so a JSON file is simpler
+and more inspectable than a database.
 
 Each entry: `{ "job_id": str, "due_at": float (epoch seconds), "action": dict }`.
 `due_at` is an **absolute** timestamp computed at schedule time
 (`time.time() + seconds`) — this is what makes restart recovery possible,
 since the original relative `seconds` value is meaningless after time has passed.
+`action` must be JSON-serializable — it always is in practice, since it
+originates from a parsed JSON HTTP request body and is never constructed
+programmatically with non-serializable values (callables, etc). `handle_schedule`
+validates this with a `json.dumps` round-trip before persisting, rejecting the
+schedule request (and publishing no job) if it fails.
 
 ### New component: `core/schedule_store.py`
 
@@ -44,20 +53,45 @@ A small `ScheduleStore` class, decoupled from timer/threading logic:
 Internally it holds the full job list in memory and rewrites the whole file on
 each mutation (simplicity over performance — appropriate at this scale).
 
+**Concurrency and crash-safety:** `ScheduleStore` is not internally
+thread-safe — callers must serialize access. `SchedulerService` calls every
+`ScheduleStore` method while holding its existing `self.lock`, the same lock
+that already guards `active_timers`, so no new lock is introduced. Each write
+uses a write-to-temp-file-then-`os.replace()` pattern (atomic rename on both
+Windows and POSIX) so a crash or power loss mid-write can never leave
+`schedules.json` half-written/corrupt — the rename either completes fully or
+the old file is untouched.
+
 ### `SchedulerService` changes
 
 - `on_start`: after subscribing to bus events, call `self.store.load()`. For
-  each persisted job:
-  - if `due_at <= now`: execute immediately via the existing
-    `_execute_job`-style path.
-  - else: start a `threading.Timer(due_at - now, ...)` for the remaining delay
-    and re-register it in `active_timers`.
+  each persisted job, **always** schedule it through `threading.Timer` rather
+  than executing overdue jobs inline:
+  - if `due_at <= now`: `threading.Timer(0, self._execute_job, [job_id, action])`.
+  - else: `threading.Timer(due_at - now, self._execute_job, [job_id, action])`.
+
+  **Why not execute overdue jobs synchronously in `on_start`:** `EventBus.publish`
+  dispatches to whatever is *currently* subscribed with no queueing
+  (`event_bus.py:26-41`) — it is not a durable queue. `main.py` starts services
+  in a fixed order where `SchedulerService` happens to start after
+  `AutomationService`, so a synchronous publish during `on_start` would work
+  today, but that ordering is incidental, not guaranteed. Routing every
+  restored job through a real (even zero-delay) `threading.Timer` means it
+  fires from the main thread's event loop after all services in `main.py` have
+  finished starting, removing the implicit ordering dependency entirely rather
+  than just documenting it.
 - `handle_schedule`: compute `due_at = time.time() + seconds`, call
   `self.store.save_job(...)` before starting the timer.
 - `_execute_job`: after removing from `active_timers`, call
   `self.store.remove_job(job_id)`.
 - `handle_cancel`: after cancelling and removing from `active_timers`, call
   `self.store.remove_job(job_id)`.
+- `on_stop`: cancels in-memory `threading.Timer` objects as it does today, but
+  **must not** call `self.store.remove_job(...)` for any of them. The entire
+  point of persistence is that a cancelled-in-memory-by-shutdown job is still
+  due later — it must still be in `schedules.json` for the next `on_start` to
+  pick up. `remove_job` is only ever called on explicit user cancellation
+  (`handle_cancel`) or successful execution (`_execute_job`).
 
 ### Error handling
 
@@ -67,10 +101,15 @@ warning and start with an empty schedule, rather than crashing the agent.
 ### Testing
 
 - `ScheduleStore`: save/load/remove round-trip; corrupt-file recovery returns
-  `[]` without raising.
-- `SchedulerService.on_start` restart logic: a persisted job with a past
-  `due_at` executes immediately; one with a future `due_at` gets a timer with
-  the correct remaining delay (mocking `threading.Timer` to avoid real waits).
+  `[]` without raising; a crash mid-write (simulated by interrupting before
+  `os.replace`) leaves the previous valid file intact.
+- `SchedulerService.on_start` restart logic:
+  - a persisted job with a past `due_at` executes (via a zero-delay timer);
+  - one with a future `due_at` gets a timer with the correct remaining delay;
+  - **multiple overdue jobs at once** all execute, none silently dropped;
+  - a full `on_start` → `on_stop` → `on_start` cycle leaves the still-pending
+    job persisted and recoverable (verifying the `on_stop` invariant above).
+  (Timers are mocked/monkeypatched to avoid real waits.)
 
 Both follow the existing test style in `nexus_desktop/tests/` (direct
 instantiation + monkeypatching, no real Flask/GUI dependencies).
