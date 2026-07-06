@@ -7,10 +7,9 @@ import {
 
 interface SettingsPageProps {
   pcIpAddress: string;
-  accessPin: string;
   connectionStatus: 'connected' | 'disconnected' | 'connecting';
   onUpdateIp: (ip: string) => void;
-  onUpdatePin: (pin: string) => void;
+  onDisconnect: () => void;
   onClose: () => void;
   onToast: (message: string, type: 'success' | 'error' | 'info' | 'warning') => void;
   voiceFeedback: boolean;
@@ -24,14 +23,13 @@ interface SettingsPageProps {
 type SettingsTab = 'connection' | 'appearance' | 'ai' | 'security' | 'data' | 'about';
 
 export default function SettingsPage({
-  pcIpAddress, accessPin, connectionStatus,
-  onUpdateIp, onUpdatePin, onClose, onToast,
+  pcIpAddress, connectionStatus,
+  onUpdateIp, onDisconnect, onClose, onToast,
   voiceFeedback, hapticFeedback, countdownDuration,
   onUpdateVoiceFeedback, onUpdateHapticFeedback, onUpdateCountdownDuration
 }: SettingsPageProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('connection');
   const [localIp, setLocalIp] = useState(pcIpAddress);
-  const [localPin, setLocalPin] = useState(accessPin);
 
   const tabs: { id: SettingsTab; label: string; icon: React.ReactNode; description: string }[] = [
     { id: 'connection', label: 'Bağlantı', icon: <Wifi size={18} />, description: 'IP adresi ve bağlantı durumu' },
@@ -44,7 +42,6 @@ export default function SettingsPage({
 
   const handleSaveConnection = () => {
     onUpdateIp(localIp);
-    onUpdatePin(localPin);
     onToast('Bağlantı ayarları kaydedildi', 'success');
   };
 
@@ -186,33 +183,25 @@ export default function SettingsPage({
                 <div className="flex items-start gap-3">
                   <Shield className="text-amber-400 shrink-0 mt-0.5" size={18} />
                   <div>
-                    <p className="text-xs font-bold text-amber-400 mb-1">PIN Güvenliği</p>
+                    <p className="text-xs font-bold text-amber-400 mb-1">Oturum Güvenliği</p>
                     <p className="text-[10px] text-slate-400 leading-relaxed">
-                      PIN kodu, bilgisayarında çalışan Nexus Agent penceresinde gösterilir. 
-                      Her başlatıldığında yeni bir PIN oluşturulur. 
+                      Eşleştirme sırasında Nexus Agent penceresindeki 4 haneli PIN girilir ve
+                      cihazına özel bir oturum anahtarı verilir. PIN her başlatmada yenilenir;
                       5 yanlış denemeden sonra 30 saniye kilitleme aktif olur.
+                      Agent yeniden başlatılırsa yeniden eşleştirme gerekir.
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-red-400 uppercase">Güvenlik PIN Kodu</label>
-                <input
-                  type="text"
-                  maxLength={4}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-2xl p-4 text-white font-mono font-bold text-2xl tracking-[1em] text-center focus:ring-2 focus:ring-red-500 outline-none transition-all placeholder:tracking-normal placeholder:text-base"
-                  value={localPin}
-                  onChange={e => setLocalPin(e.target.value.replace(/[^0-9]/g, ''))}
-                  placeholder="____"
-                />
-              </div>
-
               <button
-                onClick={handleSaveConnection}
-                className="w-full bg-cyan-500 text-slate-950 font-black py-4 rounded-2xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all"
+                onClick={() => {
+                  onDisconnect();
+                  onToast('Oturum sonlandırıldı. Yeniden eşleştirme gerekiyor.', 'info');
+                }}
+                className="w-full bg-red-500/10 border border-red-500/30 text-red-400 font-black py-4 rounded-2xl active:scale-95 transition-all"
               >
-                PIN'İ KAYDET
+                OTURUMU SONLANDIR & YENİDEN EŞLEŞTİR
               </button>
             </div>
           )}
