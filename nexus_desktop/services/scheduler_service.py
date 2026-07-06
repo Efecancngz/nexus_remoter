@@ -37,19 +37,23 @@ class SchedulerService(Service):
         now = time.time()
         with self.lock:
             for job in self.store.load():
-                job_id = job.get('job_id')
-                due_at = job.get('due_at', 0)
-                action = job.get('action')
-                if not job_id or action is None:
-                    logging.warning(f"Skipping malformed persisted job: {job!r}")
+                try:
+                    job_id = job.get('job_id')
+                    due_at = job.get('due_at', 0)
+                    action = job.get('action')
+                    if not job_id or action is None:
+                        logging.warning(f"Skipping malformed persisted job: {job!r}")
+                        continue
+
+                    delay = max(0.0, due_at - now)
+                    logging.info(f"Restoring persisted job {job_id}, firing in {delay:.1f}s")
+
+                    timer = threading.Timer(delay, self._execute_job, [job_id, action])
+                    self.active_timers[job_id] = timer
+                    timer.start()
+                except Exception as e:
+                    logging.warning(f"Skipping malformed persisted job entry {job!r}: {e}")
                     continue
-
-                delay = max(0.0, due_at - now)
-                logging.info(f"Restoring persisted job {job_id}, firing in {delay:.1f}s")
-
-                timer = threading.Timer(delay, self._execute_job, [job_id, action])
-                self.active_timers[job_id] = timer
-                timer.start()
 
     def handle_schedule(self, event):
         data = event.payload

@@ -79,10 +79,14 @@ the old file is untouched.
   in a fixed order where `SchedulerService` happens to start after
   `AutomationService`, so a synchronous publish during `on_start` would work
   today, but that ordering is incidental, not guaranteed. Routing every
-  restored job through a real (even zero-delay) `threading.Timer` means it
-  fires from the main thread's event loop after all services in `main.py` have
-  finished starting, removing the implicit ordering dependency entirely rather
-  than just documenting it.
+  restored job through a real (even zero-delay) `threading.Timer` avoids two
+  problems with executing inline during restore: (1) `_restore_persisted_jobs`
+  runs under `with self.lock:`, and `_execute_job` also acquires `self.lock`,
+  so calling it directly would deadlock on that (non-reentrant) lock; and (2)
+  it lets overdue-on-restart execution reuse the same `_execute_job` cleanup
+  path as normal scheduled execution (removing the job from `active_timers`
+  and from the persisted store) instead of needing a separate code path for
+  the restart case.
 - `handle_schedule`: compute `due_at = time.time() + seconds`, call
   `self.store.save_job(...)` before starting the timer.
 - `_execute_job`: after removing from `active_timers`, call
