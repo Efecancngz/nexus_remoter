@@ -1,10 +1,9 @@
 import { AutomationStep } from "../types";
+import { buildAgentUrl } from "./agentUrl";
 
 // The Gemini API key now lives on the desktop agent. The client calls the
 // agent's token-protected /ai/* proxy routes instead of Google directly, so the
 // key is never shipped in the browser bundle.
-
-const sanitizeIp = (ip: string) => ip.replace(/^https?:\/\//, '').replace(/\/$/, '').trim();
 
 const withIds = (rawSteps: any): AutomationStep[] =>
   Array.isArray(rawSteps)
@@ -15,10 +14,7 @@ const withIds = (rawSteps: any): AutomationStep[] =>
     : [];
 
 async function callAgent(path: string, ip: string, token: string, body: object): Promise<any> {
-  const cleanIp = sanitizeIp(ip);
-  if (!cleanIp) throw new Error("PC IP adresi ayarlı değil.");
-
-  const res = await fetch(`http://${cleanIp}:8080${path}`, {
+  const res = await fetch(buildAgentUrl(ip, path), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

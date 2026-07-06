@@ -56,7 +56,7 @@ describe('ActionExecutor.run', () => {
 
     expect(result).toEqual({ success: true });
     const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toBe('http://192.168.1.5:8080/execute');
+    expect(url).toBe('https://192.168.1.5:8080/execute');
     expect(options.headers['X-Nexus-Token']).toBe('tok-123');
     expect(JSON.parse(options.body)).toMatchObject({ type: ActionType.KEYPRESS, value: 'a' });
   });
@@ -134,7 +134,7 @@ describe('ActionExecutor.ping', () => {
     fetchMock.mockResolvedValue({ ok: true } as Response);
 
     expect(await executor.ping('1.2.3.4')).toBe(true);
-    expect(fetchMock.mock.calls[0][0]).toBe('http://1.2.3.4:8080/ping');
+    expect(fetchMock.mock.calls[0][0]).toBe('https://1.2.3.4:8080/ping');
   });
 
   it('returns false when the agent is unreachable', async () => {

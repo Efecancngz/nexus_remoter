@@ -1,5 +1,6 @@
 
 import { AutomationStep, ActionType } from "../types";
+import { buildAgentUrl } from "./agentUrl";
 
 export class ActionExecutor {
   private static instance: ActionExecutor;
@@ -13,14 +14,9 @@ export class ActionExecutor {
     return ActionExecutor.instance;
   }
 
-  private sanitizeIp(ip: string): string {
-    return ip.replace(/^https?:\/\//, '').replace(/\/$/, '').trim();
-  }
 
   async run(steps: AutomationStep[], ip: string, token?: string): Promise<{ success: boolean; error?: string }> {
     if (!ip) return { success: false, error: "Lütfen ayarlardan PC IP adresini girin." };
-
-    const cleanIp = this.sanitizeIp(ip);
 
     for (const step of steps) {
       console.log(`[EXECUTING] ${step.type}: ${step.value} (${step.description})`);
@@ -34,7 +30,7 @@ export class ActionExecutor {
 
       // Network Actions (Sent to PC Agent)
       try {
-        const response = await fetch(`http://${cleanIp}:8080/execute`, {
+        const response = await fetch(buildAgentUrl(ip, '/execute'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -83,11 +79,10 @@ export class ActionExecutor {
 
   async ping(ip: string): Promise<boolean> {
     if (!ip) return false;
-    const cleanIp = this.sanitizeIp(ip);
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 2000);
-      const res = await fetch(`http://${cleanIp}:8080/ping`, {
+      const res = await fetch(buildAgentUrl(ip, '/ping'), {
         signal: controller.signal
       });
       clearTimeout(timeoutId);
