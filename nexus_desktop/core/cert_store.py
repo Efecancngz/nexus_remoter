@@ -38,7 +38,7 @@ class CertStore:
                 cert = x509.load_pem_x509_certificate(f.read())
             with open(self.key_path, "rb") as f:
                 serialization.load_pem_private_key(f.read(), password=None)
-        except (ValueError, OSError) as e:
+        except (ValueError, TypeError, OSError) as e:
             logging.warning(f"[CertStore] Failed to parse cert/key in {self.cert_dir}: {e}")
             return False
 
