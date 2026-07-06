@@ -138,7 +138,7 @@ export default function App() {
       await executor.run(
         [{ id: 'm1', type: action, value, description: 'Medya' }],
         connection.pcIpAddress,
-        connection.accessPin
+        connection.accessToken
       );
     } catch { }
   };
@@ -197,12 +197,12 @@ export default function App() {
     
     setState(s => ({ ...s, isExecuting: true, lastExecutedAction: stepsToRun[0]?.description || 'Sesli komut...' }));
     try {
-      const result = await executor.run(stepsToRun, connection.pcIpAddress, connection.accessPin);
+      const result = await executor.run(stepsToRun, connection.pcIpAddress, connection.accessToken);
       if (!result.success) {
         triggerHaptic(200); // Vibrate on error: 1 long pulse
         if (result.error === "AUTH_REQUIRED") {
-          addToast("⚠️ Yetkisiz Giriş: PIN Kodunuz Hatalı!", 'error');
-          connection.updatePin('');
+          addToast("⚠️ Oturum geçersiz: Lütfen yeniden eşleştirin!", 'error');
+          connection.updateToken('');
         } else {
           addToast(result.error || "Bilinmeyen bir hata oluştu.", 'error');
         }
@@ -236,12 +236,12 @@ export default function App() {
 
     setState(s => ({ ...s, isExecuting: true, lastExecutedAction: btn.label }));
     try {
-      const result = await executor.run(btn.steps, connection.pcIpAddress, connection.accessPin);
+      const result = await executor.run(btn.steps, connection.pcIpAddress, connection.accessToken);
       if (!result.success) {
         triggerHaptic(200); // Vibrate heavy on error
         if (result.error === "AUTH_REQUIRED") {
-          addToast("⚠️ Yetkisiz Giriş: PIN Kodunuz Hatalı!", 'error');
-          connection.updatePin('');
+          addToast("⚠️ Oturum geçersiz: Lütfen yeniden eşleştirin!", 'error');
+          connection.updateToken('');
         } else {
           addToast(result.error || "Bilinmeyen bir hata oluştu.", 'error');
         }
@@ -339,7 +339,7 @@ export default function App() {
   };
 
   // Check if connection is established. If not, show pairing lock screen.
-  const isConnected = connection.connectionStatus === 'connected' && connection.pcIpAddress && connection.accessPin;
+  const isConnected = connection.connectionStatus === 'connected' && connection.pcIpAddress && connection.accessToken;
 
   if (!isConnected) {
     return (
@@ -347,7 +347,6 @@ export default function App() {
         <ConnectScreen
           onPair={handlePair}
           initialIp={connection.pcIpAddress}
-          initialPin={connection.accessPin}
         />
         <ToastContainer toasts={toasts} onRemove={removeToast} />
       </div>
@@ -488,7 +487,7 @@ export default function App() {
 
               <SchedulerModal
                 pcIpAddress={connection.pcIpAddress}
-                accessPin={connection.accessPin}
+                accessToken={connection.accessToken}
                 onClose={() => setActiveTab('remote')}
                 onToast={addToast}
               />
@@ -499,10 +498,9 @@ export default function App() {
             <div className="animate-in slide-in-from-bottom duration-300">
               <SettingsPage
                 pcIpAddress={connection.pcIpAddress}
-                accessPin={connection.accessPin}
                 connectionStatus={connection.connectionStatus}
                 onUpdateIp={connection.updateIp}
-                onUpdatePin={connection.updatePin}
+                onDisconnect={() => connection.updateToken('')}
                 onClose={() => setActiveTab('remote')}
                 onToast={addToast}
                 voiceFeedback={voiceFeedback}

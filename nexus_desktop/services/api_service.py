@@ -35,6 +35,7 @@ class ApiService(Service):
         # Define routes
         self.app.add_url_rule('/ping', 'ping', self.ping, methods=['GET'])
         self.app.add_url_rule('/pair', 'pair', self.pair, methods=['POST'])
+        self.app.add_url_rule('/verify', 'verify', self.verify, methods=['GET'])
         self.app.add_url_rule('/execute', 'execute', self.execute, methods=['POST'])
         self.app.add_url_rule('/stats', 'stats', self.get_stats, methods=['GET'])
         
@@ -71,23 +72,26 @@ class ApiService(Service):
         return jsonify({"status": "ok", "mode": "desktop_agent", "secured": True}), 200
 
     def pair(self):
-        """Endpoint to verify PIN and maybe exchange keys in future"""
+        """Verify the pairing PIN and issue a session token."""
         data = request.json
         incoming_pin = data.get('pin')
-        
-        if self.security.validate(incoming_pin):
-            return jsonify({"success": True, "message": "Paired successfully"}), 200
+
+        if self.security.validate_pin(incoming_pin):
+            token = self.security.issue_token()
+            return jsonify({"success": True, "message": "Paired successfully", "token": token}), 200
         else:
             return jsonify({"success": False, "message": "Invalid PIN"}), 401
 
+    def _authorized(self):
+        return self.security.validate_token(request.headers.get('X-Nexus-Token'))
+
     def execute(self):
         data = request.json
-        incoming_pin = data.get('pin') or request.headers.get('X-Nexus-PIN')
-        
+
         # Enforce Security
-        if not self.security.validate(incoming_pin):
+        if not self._authorized():
              logging.warning("[AuthFail] Rejected /execute request with invalid credentials")
-             return jsonify({"success": False, "error": "Unauthorized: Invalid PIN"}), 401
+             return jsonify({"success": False, "error": "Unauthorized: Invalid or missing token"}), 401
 
         action_type = data.get('type', '')
         logging.info("[AuthSuccess] Command accepted: type=%s", action_type)
@@ -114,7 +118,15 @@ class ApiService(Service):
         
         return jsonify({"success": True, "status": "queued"}), 200
 
+    def verify(self):
+        """Lightweight session-token check for the client's periodic heartbeat."""
+        if self._authorized():
+            return jsonify({"success": True}), 200
+        return jsonify({"success": False}), 401
+
     def get_stats(self):
+        if not self._authorized():
+            return jsonify({"success": False, "error": "Unauthorized"}), 401
         return jsonify(self.last_stats), 200
 
     def on_stats_update(self, event):
