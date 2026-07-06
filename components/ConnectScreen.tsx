@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Shield, Wifi, Loader2, ArrowRight, ExternalLink } from 'lucide-react';
-import { sanitizeIp } from '../services/agentUrl';
+import { buildAgentUrl } from '../services/agentUrl';
 
 interface ConnectScreenProps {
   onPair: (ip: string, pin: string) => Promise<{ success: boolean; error?: string }>;
@@ -14,7 +14,7 @@ export default function ConnectScreen({ onPair, initialIp = '', initialPin = '' 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const trustUrl = ip.trim() ? `https://${sanitizeIp(ip)}:8080/` : null;
+  const trustUrl = ip.trim() ? buildAgentUrl(ip, '/') : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
