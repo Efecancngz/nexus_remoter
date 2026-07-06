@@ -29,7 +29,7 @@ describe('gemini service (agent /ai/* proxy client)', () => {
 
       expect(fetchMock).toHaveBeenCalledTimes(1);
       const [url, options] = fetchMock.mock.calls[0];
-      expect(url).toBe('http://192.168.1.5:8080/ai/macro');
+      expect(url).toBe('https://192.168.1.5:8080/ai/macro');
       expect(options.method).toBe('POST');
       expect(options.headers['X-Nexus-Token']).toBe('tok-123');
       expect(JSON.parse(options.body)).toEqual({ prompt: 'spotify ac' });
@@ -42,7 +42,7 @@ describe('gemini service (agent /ai/* proxy client)', () => {
       await generateMacro('x', 'http://192.168.1.5/', 'tok');
 
       const [url] = fetchMock.mock.calls[0];
-      expect(url).toBe('http://192.168.1.5:8080/ai/macro');
+      expect(url).toBe('https://192.168.1.5:8080/ai/macro');
     });
 
     it('assigns a unique id to every returned step', async () => {
@@ -128,7 +128,7 @@ describe('gemini service (agent /ai/* proxy client)', () => {
       await generateMacroFromAudio('base64data', 'audio/wav', '1.2.3.4', 'tok');
 
       const [url, options] = fetchMock.mock.calls[0];
-      expect(url).toBe('http://1.2.3.4:8080/ai/audio');
+      expect(url).toBe('https://1.2.3.4:8080/ai/audio');
       expect(JSON.parse(options.body)).toEqual({ audio: 'base64data', mimeType: 'audio/wav' });
     });
   });
