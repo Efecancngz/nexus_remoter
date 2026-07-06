@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { executor } from '../services/automation';
+import { sanitizeIp, buildAgentUrl } from '../services/agentUrl';
 import { SystemStats } from '../types';
 
 interface ConnectionState {
@@ -31,11 +32,11 @@ export function useConnection() {
   }, []);
 
   const pairDevice = async (ip: string, pin: string): Promise<{ success: boolean; error?: string }> => {
-    const cleanIp = ip.replace(/^https?:\/\//, '').replace(/\/$/, '').trim();
+    const cleanIp = sanitizeIp(ip);
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 4000);
-      const res = await fetch(`http://${cleanIp}:8080/pair`, {
+      const res = await fetch(buildAgentUrl(ip, '/pair'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -78,7 +79,7 @@ export function useConnection() {
         try {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 2000);
-          const verifyRes = await fetch(`http://${pcIpAddress}:8080/verify`, {
+          const verifyRes = await fetch(buildAgentUrl(pcIpAddress, '/verify'), {
             headers: { 'X-Nexus-Token': accessToken },
             signal: controller.signal
           });
@@ -105,7 +106,7 @@ export function useConnection() {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 1200);
-        const res = await fetch(`http://${pcIpAddress}:8080/stats`, {
+        const res = await fetch(buildAgentUrl(pcIpAddress, '/stats'), {
           headers: { 'X-Nexus-Token': accessToken },
           signal: controller.signal
         });
