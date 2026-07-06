@@ -4,6 +4,7 @@ import threading
 import time
 import logging
 import uuid
+import json
 from core.service_interface import Service
 from core.schedule_store import ScheduleStore
 
@@ -37,6 +38,12 @@ class SchedulerService(Service):
 
         if not action or seconds <= 0:
             logging.error("Invalid schedule request")
+            return
+
+        try:
+            json.dumps(action)
+        except (TypeError, ValueError) as e:
+            logging.error(f"Schedule action is not JSON-serializable, rejecting: {e}")
             return
 
         job_id = str(uuid.uuid4())

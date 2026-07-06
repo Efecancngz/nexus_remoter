@@ -83,3 +83,17 @@ def test_executed_job_is_removed_from_store(monkeypatch, tmp_path):
     timer.fire()
 
     assert svc.store.load() == []
+
+
+def test_non_json_serializable_action_is_rejected(monkeypatch, tmp_path):
+    svc, bus = make_service(monkeypatch, tmp_path)
+
+    created_events = []
+    bus.subscribe("SCHEDULE_CREATED", lambda event: created_events.append(event))
+
+    # A set is not JSON-serializable
+    bus.publish("SCHEDULE_ACTION", {"seconds": 60, "action": {"type": "WAIT", "value": {1, 2, 3}}})
+
+    assert svc.store.load() == []
+    assert svc.active_timers == {}
+    assert created_events == []
