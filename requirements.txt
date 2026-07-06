@@ -8,3 +8,4 @@ pystray
 Pillow
 python-dotenv
 google-generativeai
+cryptography
