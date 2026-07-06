@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { AppState, ControlButton, ActionType, AutomationStep } from './types';
 import { executor } from './services/automation';
-import { generateMacro } from './services/gemini';
-import { 
-  RefreshCw, Gamepad2, Sparkles, Clock, Settings, Shield, 
-  Wifi, Cpu, Battery, Power, Volume2 
+import { generateMacro, generateMacroFromAudio } from './services/gemini';
+import {
+  RefreshCw, Gamepad2, Sparkles, Clock, Settings, Shield,
+  Wifi, Cpu, Battery, Power, Volume2
 } from 'lucide-react';
 
 // Components
@@ -16,6 +16,8 @@ import SchedulerModal from './components/SchedulerModal';
 import SettingsPage from './components/SettingsPage';
 import ToastContainer from './components/ToastContainer';
 import ConnectScreen from './components/ConnectScreen';
+import VoiceButton from './components/VoiceButton';
+import CommandPreviewModal from './components/CommandPreviewModal';
 
 // Hooks
 import { useConnection } from './hooks/useConnection';
@@ -70,6 +72,40 @@ export default function App() {
   const [aiPrompt, setAiPrompt] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiStatus, setAiStatus] = useState<string | null>(null);
+  const [previewSteps, setPreviewSteps] = useState<AutomationStep[] | null>(null);
+
+  // Voice Remote settings with localStorage persistence
+  const [voiceFeedback, setVoiceFeedback] = useState(() => {
+    const saved = localStorage.getItem('nexus_voice_feedback');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [hapticFeedback, setHapticFeedback] = useState(() => {
+    const saved = localStorage.getItem('nexus_haptic_feedback');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [countdownDuration, setCountdownDuration] = useState(() => {
+    const saved = localStorage.getItem('nexus_countdown_duration');
+    return saved !== null ? Number(saved) : 5;
+  });
+
+  const handleUpdateVoiceFeedback = (val: boolean) => {
+    setVoiceFeedback(val);
+    localStorage.setItem('nexus_voice_feedback', String(val));
+  };
+  const handleUpdateHapticFeedback = (val: boolean) => {
+    setHapticFeedback(val);
+    localStorage.setItem('nexus_haptic_feedback', String(val));
+  };
+  const handleUpdateCountdownDuration = (val: number) => {
+    setCountdownDuration(val);
+    localStorage.setItem('nexus_countdown_duration', String(val));
+  };
+
+  const triggerHaptic = (pattern: number | number[]) => {
+    if (hapticFeedback && navigator.vibrate) {
+      navigator.vibrate(pattern);
+    }
+  };
 
   // Sync connection state
   useEffect(() => {
@@ -102,9 +138,83 @@ export default function App() {
       await executor.run(
         [{ id: 'm1', type: action, value, description: 'Medya' }],
         connection.pcIpAddress,
-        connection.accessPin
+        connection.accessToken
       );
     } catch { }
+  };
+
+  // Voice Command Handler
+  const handleVoiceCommand = async (base64Audio: string, mimeType: string) => {
+    setState(s => ({ ...s, isExecuting: true, lastExecutedAction: 'Ses işleniyor...' }));
+    
+    if (voiceFeedback && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance("Ses analiz ediliyor...");
+      utterance.lang = 'tr-TR';
+      window.speechSynthesis.speak(utterance);
+    }
+
+    try {
+      const steps = await generateMacroFromAudio(base64Audio, mimeType, connection.pcIpAddress, connection.accessToken);
+      if (steps && steps.length > 0) {
+        const desc = steps[0].description || "Komut planlandı.";
+        if (voiceFeedback && 'speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(desc);
+          utterance.lang = 'tr-TR';
+          window.speechSynthesis.speak(utterance);
+        }
+        
+        addToast(`🎙️ Sesli Komut: "${desc}"`, 'success');
+        setPreviewSteps(steps); // Save steps in state to show preview modal
+      } else {
+        addToast("Sesli komut anlaşılamadı.", 'warning');
+        if (voiceFeedback && 'speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance("Üzgünüm, ne dediğinizi anlayamadım.");
+          utterance.lang = 'tr-TR';
+          window.speechSynthesis.speak(utterance);
+        }
+      }
+    } catch (e: any) {
+      addToast(e.message || "Sesli komut işlenirken hata oluştu.", 'error');
+      if (voiceFeedback && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance("Sesi analiz ederken hata oluştu.");
+        utterance.lang = 'tr-TR';
+        window.speechSynthesis.speak(utterance);
+      }
+    } finally {
+      setState(s => ({ ...s, isExecuting: false }));
+    }
+  };
+
+  // Confirm and Execute Voice Command Steps
+  const handleConfirmVoiceCommand = async () => {
+    if (!previewSteps) return;
+    const stepsToRun = previewSteps;
+    setPreviewSteps(null); // Close modal
+    
+    setState(s => ({ ...s, isExecuting: true, lastExecutedAction: stepsToRun[0]?.description || 'Sesli komut...' }));
+    try {
+      const result = await executor.run(stepsToRun, connection.pcIpAddress, connection.accessToken);
+      if (!result.success) {
+        triggerHaptic(200); // Vibrate on error: 1 long pulse
+        if (result.error === "AUTH_REQUIRED") {
+          addToast("⚠️ Oturum geçersiz: Lütfen yeniden eşleştirin!", 'error');
+          connection.updateToken('');
+        } else {
+          addToast(result.error || "Bilinmeyen bir hata oluştu.", 'error');
+        }
+      } else {
+        triggerHaptic([45, 55, 45]); // Vibrate on success: double brief pulse
+      }
+    } catch (e: any) {
+      triggerHaptic(200);
+      addToast("Komut yürütülemedi. Bağlantıyı kontrol edin.", 'error');
+    } finally {
+      setState(s => ({ ...s, isExecuting: false }));
+    }
   };
 
   // Volume change handler (update local state immediately)
@@ -122,20 +232,25 @@ export default function App() {
     }
     if (!btn.steps.length) return;
 
+    triggerHaptic(35); // Vibrate briefly on button touch/press
+
     setState(s => ({ ...s, isExecuting: true, lastExecutedAction: btn.label }));
     try {
-      const result = await executor.run(btn.steps, connection.pcIpAddress, connection.accessPin);
+      const result = await executor.run(btn.steps, connection.pcIpAddress, connection.accessToken);
       if (!result.success) {
+        triggerHaptic(200); // Vibrate heavy on error
         if (result.error === "AUTH_REQUIRED") {
-          addToast("⚠️ Yetkisiz Giriş: PIN Kodunuz Hatalı!", 'error');
-          connection.updatePin('');
+          addToast("⚠️ Oturum geçersiz: Lütfen yeniden eşleştirin!", 'error');
+          connection.updateToken('');
         } else {
           addToast(result.error || "Bilinmeyen bir hata oluştu.", 'error');
         }
       } else {
         addToast(`✅ ${btn.label} çalıştırıldı`, 'success');
+        triggerHaptic([40, 50, 40]); // Vibrate double brief on success
       }
     } catch (e: any) {
+      triggerHaptic(200);
       addToast("Bağlantı hatası: Bilgisayar ajanı kapalı veya IP yanlış.", 'error');
     } finally {
       setState(s => ({ ...s, isExecuting: false }));
@@ -151,9 +266,7 @@ export default function App() {
     setAiStatus("Zekâ işleniyor...");
 
     try {
-      const newSteps = await generateMacro(promptValue, 0, (attempt, wait) => {
-        setAiStatus(`Yoğunluk var. ${attempt}. deneme ${wait / 1000}sn sonra...`);
-      });
+      const newSteps = await generateMacro(promptValue, connection.pcIpAddress, connection.accessToken);
 
       if (newSteps && newSteps.length > 0) {
         setEditingBtn(prev => {
@@ -224,15 +337,14 @@ export default function App() {
   };
 
   // Check if connection is established. If not, show pairing lock screen.
-  const isConnected = connection.connectionStatus === 'connected' && connection.pcIpAddress && connection.accessPin;
+  const isConnected = connection.connectionStatus === 'connected' && connection.pcIpAddress && connection.accessToken;
 
   if (!isConnected) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-        <ConnectScreen 
-          onPair={handlePair} 
-          initialIp={connection.pcIpAddress} 
-          initialPin={connection.accessPin} 
+        <ConnectScreen
+          onPair={handlePair}
+          initialIp={connection.pcIpAddress}
         />
         <ToastContainer toasts={toasts} onRemove={removeToast} />
       </div>
@@ -247,7 +359,7 @@ export default function App() {
 
       {/* Main Container - Centered and optimized for mobile screens */}
       <div className="w-full max-w-md bg-slate-950/40 backdrop-blur-3xl min-h-screen flex flex-col border-x border-white/5 shadow-2xl relative">
-        
+
         {/* HEADER */}
         <Header
           connectionStatus={connection.connectionStatus}
@@ -309,13 +421,13 @@ export default function App() {
                   value={aiPrompt}
                   onChange={e => setAiPrompt(e.target.value)}
                 />
-                
+
                 <button
                   onClick={async () => {
                     if (!aiPrompt.trim()) return;
                     setIsAiLoading(true);
                     try {
-                      const newSteps = await generateMacro(aiPrompt.trim());
+                      const newSteps = await generateMacro(aiPrompt.trim(), connection.pcIpAddress, connection.accessToken);
                       if (newSteps && newSteps.length > 0) {
                         const newBtn: ControlButton = {
                           id: Date.now().toString(),
@@ -373,7 +485,7 @@ export default function App() {
 
               <SchedulerModal
                 pcIpAddress={connection.pcIpAddress}
-                accessPin={connection.accessPin}
+                accessToken={connection.accessToken}
                 onClose={() => setActiveTab('remote')}
                 onToast={addToast}
               />
@@ -384,12 +496,17 @@ export default function App() {
             <div className="animate-in slide-in-from-bottom duration-300">
               <SettingsPage
                 pcIpAddress={connection.pcIpAddress}
-                accessPin={connection.accessPin}
                 connectionStatus={connection.connectionStatus}
                 onUpdateIp={connection.updateIp}
-                onUpdatePin={connection.updatePin}
+                onDisconnect={() => connection.updateToken('')}
                 onClose={() => setActiveTab('remote')}
                 onToast={addToast}
+                voiceFeedback={voiceFeedback}
+                hapticFeedback={hapticFeedback}
+                countdownDuration={countdownDuration}
+                onUpdateVoiceFeedback={handleUpdateVoiceFeedback}
+                onUpdateHapticFeedback={handleUpdateHapticFeedback}
+                onUpdateCountdownDuration={handleUpdateCountdownDuration}
               />
             </div>
           )}
@@ -400,9 +517,8 @@ export default function App() {
           <div className="w-full max-w-md bg-slate-900/80 backdrop-blur-2xl border border-white/5 rounded-3xl p-2 flex justify-around items-center shadow-[0_10px_30px_rgba(0,0,0,0.8)] pointer-events-auto">
             <button
               onClick={() => setActiveTab('remote')}
-              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-2xl transition-all ${
-                activeTab === 'remote' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-500 hover:text-slate-300'
-              }`}
+              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-2xl transition-all ${activeTab === 'remote' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-500 hover:text-slate-300'
+                }`}
             >
               <Gamepad2 size={20} />
               <span className="text-[9px] font-black uppercase tracking-wider">Kumanda</span>
@@ -410,19 +526,24 @@ export default function App() {
 
             <button
               onClick={() => setActiveTab('ai')}
-              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-2xl transition-all ${
-                activeTab === 'ai' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-500 hover:text-slate-300'
-              }`}
+              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-2xl transition-all ${activeTab === 'ai' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-500 hover:text-slate-300'
+                }`}
             >
               <Sparkles size={20} />
               <span className="text-[9px] font-black uppercase tracking-wider">Gemini AI</span>
             </button>
 
+            {/* Central Microphone Action Button */}
+            <VoiceButton
+              onAudioReady={handleVoiceCommand}
+              onToast={addToast}
+              hapticEnabled={hapticFeedback}
+            />
+
             <button
               onClick={() => setActiveTab('scheduler')}
-              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-2xl transition-all ${
-                activeTab === 'scheduler' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-500 hover:text-slate-300'
-              }`}
+              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-2xl transition-all ${activeTab === 'scheduler' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-500 hover:text-slate-300'
+                }`}
             >
               <Clock size={20} />
               <span className="text-[9px] font-black uppercase tracking-wider">Planla</span>
@@ -430,15 +551,24 @@ export default function App() {
 
             <button
               onClick={() => setActiveTab('settings')}
-              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-2xl transition-all ${
-                activeTab === 'settings' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-500 hover:text-slate-300'
-              }`}
+              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-2xl transition-all ${activeTab === 'settings' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-500 hover:text-slate-300'
+                }`}
             >
               <Settings size={20} />
               <span className="text-[9px] font-black uppercase tracking-wider">Ayarlar</span>
             </button>
           </div>
         </nav>
+
+        {/* Command Preview Modal */}
+        {previewSteps && (
+          <CommandPreviewModal
+            steps={previewSteps}
+            onConfirm={handleConfirmVoiceCommand}
+            onCancel={() => setPreviewSteps(null)}
+            countdownSeconds={countdownDuration}
+          />
+        )}
 
         {/* Edit Modal (Active only when editing a button) */}
         {editingBtn && (

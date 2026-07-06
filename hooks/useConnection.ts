@@ -6,14 +6,14 @@ interface ConnectionState {
   pcIpAddress: string;
   connectionStatus: 'connected' | 'disconnected' | 'connecting';
   systemStats?: SystemStats;
-  accessPin: string;
+  accessToken: string;
 }
 
 export function useConnection() {
   const [pcIpAddress, setPcIpAddress] = useState(() => localStorage.getItem('nexus_pc_ip') || '');
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected');
   const [systemStats, setSystemStats] = useState<SystemStats | undefined>();
-  const [accessPin, setAccessPin] = useState(() => localStorage.getItem('nexus_access_pin') || '');
+  const [accessToken, setAccessToken] = useState(() => localStorage.getItem('nexus_access_token') || '');
 
   const updateIp = useCallback((ip: string) => {
     const cleaned = ip.trim();
@@ -21,10 +21,13 @@ export function useConnection() {
     localStorage.setItem('nexus_pc_ip', cleaned);
   }, []);
 
-  const updatePin = useCallback((pin: string) => {
-    const cleaned = pin.replace(/[^0-9]/g, '');
-    setAccessPin(cleaned);
-    localStorage.setItem('nexus_access_pin', cleaned);
+  const updateToken = useCallback((token: string) => {
+    setAccessToken(token);
+    if (token) {
+      localStorage.setItem('nexus_access_token', token);
+    } else {
+      localStorage.removeItem('nexus_access_token');
+    }
   }, []);
 
   const pairDevice = async (ip: string, pin: string): Promise<{ success: boolean; error?: string }> => {
@@ -37,14 +40,15 @@ export function useConnection() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ pin })
+        body: JSON.stringify({ pin }),
+        signal: controller.signal
       });
       clearTimeout(timeoutId);
       if (res.status === 200) {
         const data = await res.json();
-        if (data.success) {
+        if (data.success && data.token) {
           updateIp(cleanIp);
-          updatePin(pin);
+          updateToken(data.token);
           setConnectionStatus('connected');
           return { success: true };
         }
@@ -61,6 +65,7 @@ export function useConnection() {
   useEffect(() => {
     if (!pcIpAddress) return;
 
+    // 1. Connection and session verification (runs every 8s)
     const checkConn = async () => {
       const ok = await executor.ping(pcIpAddress);
 
@@ -69,54 +74,75 @@ export function useConnection() {
         return;
       }
 
-      // If ping succeeded, verify if our PIN is still authorized
-      if (accessPin) {
+      if (accessToken) {
         try {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 2000);
-          const pairRes = await fetch(`http://${pcIpAddress}:8080/pair`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pin: accessPin }),
+          const verifyRes = await fetch(`http://${pcIpAddress}:8080/verify`, {
+            headers: { 'X-Nexus-Token': accessToken },
             signal: controller.signal
           });
           clearTimeout(timeoutId);
 
-          if (pairRes.status === 401) {
-            // PIN is invalid! Clear access pin state & localstorage so pairing locks instantly
-            setAccessPin('');
-            localStorage.removeItem('nexus_access_pin');
+          if (verifyRes.status === 401) {
+            // Token invalidated (agent restarted) — force re-pairing
+            setAccessToken('');
+            localStorage.removeItem('nexus_access_token');
             setConnectionStatus('disconnected');
             return;
           }
         } catch {
-          // Ignore network glitch during pair check if ping succeeded
+          // Ignore network glitch during verify check
         }
       }
 
-      let stats: SystemStats | undefined;
-      try {
-        const res = await fetch(`http://${pcIpAddress}:8080/stats`);
-        if (res.ok) stats = await res.json();
-      } catch { }
-
       setConnectionStatus('connected');
-      if (stats) setSystemStats(stats);
     };
 
-    checkConn();
-    const interval = setInterval(checkConn, 5000);
-    return () => clearInterval(interval);
-  }, [pcIpAddress]);
+    // 2. Stats/Volume polling (runs every 1.5s for real-time synchronization)
+    const fetchStats = async () => {
+      if (!accessToken) return;
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 1200);
+        const res = await fetch(`http://${pcIpAddress}:8080/stats`, {
+          headers: { 'X-Nexus-Token': accessToken },
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          const stats = await res.json();
+          setSystemStats(stats);
+          setConnectionStatus('connected');
+        }
+      } catch {
+        // Prevent instant disconnect on single request failure to avoid flickering
+      }
+    };
+
+    // Initial check and immediate stats load
+    checkConn().then(() => {
+      fetchStats();
+    });
+
+    const connInterval = setInterval(checkConn, 8000);
+    const statsInterval = setInterval(fetchStats, 1500);
+
+    return () => {
+      clearInterval(connInterval);
+      clearInterval(statsInterval);
+    };
+  }, [pcIpAddress, accessToken]);
 
   return {
     pcIpAddress,
     connectionStatus,
     systemStats,
     setSystemStats,
-    accessPin,
+    accessToken,
     updateIp,
-    updatePin,
+    updateToken,
     pairDevice,
   };
 }

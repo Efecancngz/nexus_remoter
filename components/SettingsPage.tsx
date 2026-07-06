@@ -7,23 +7,29 @@ import {
 
 interface SettingsPageProps {
   pcIpAddress: string;
-  accessPin: string;
   connectionStatus: 'connected' | 'disconnected' | 'connecting';
   onUpdateIp: (ip: string) => void;
-  onUpdatePin: (pin: string) => void;
+  onDisconnect: () => void;
   onClose: () => void;
   onToast: (message: string, type: 'success' | 'error' | 'info' | 'warning') => void;
+  voiceFeedback: boolean;
+  hapticFeedback: boolean;
+  countdownDuration: number;
+  onUpdateVoiceFeedback: (val: boolean) => void;
+  onUpdateHapticFeedback: (val: boolean) => void;
+  onUpdateCountdownDuration: (val: number) => void;
 }
 
 type SettingsTab = 'connection' | 'appearance' | 'ai' | 'security' | 'data' | 'about';
 
 export default function SettingsPage({
-  pcIpAddress, accessPin, connectionStatus,
-  onUpdateIp, onUpdatePin, onClose, onToast
+  pcIpAddress, connectionStatus,
+  onUpdateIp, onDisconnect, onClose, onToast,
+  voiceFeedback, hapticFeedback, countdownDuration,
+  onUpdateVoiceFeedback, onUpdateHapticFeedback, onUpdateCountdownDuration
 }: SettingsPageProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('connection');
   const [localIp, setLocalIp] = useState(pcIpAddress);
-  const [localPin, setLocalPin] = useState(accessPin);
 
   const tabs: { id: SettingsTab; label: string; icon: React.ReactNode; description: string }[] = [
     { id: 'connection', label: 'Bağlantı', icon: <Wifi size={18} />, description: 'IP adresi ve bağlantı durumu' },
@@ -36,7 +42,6 @@ export default function SettingsPage({
 
   const handleSaveConnection = () => {
     onUpdateIp(localIp);
-    onUpdatePin(localPin);
     onToast('Bağlantı ayarları kaydedildi', 'success');
   };
 
@@ -158,7 +163,7 @@ export default function SettingsPage({
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-slate-400 font-bold">Polling</span>
-                  <span className="text-xs font-mono text-slate-300">5 saniye</span>
+                  <span className="text-xs font-mono text-slate-300">1.5 saniye</span>
                 </div>
               </div>
 
@@ -178,33 +183,25 @@ export default function SettingsPage({
                 <div className="flex items-start gap-3">
                   <Shield className="text-amber-400 shrink-0 mt-0.5" size={18} />
                   <div>
-                    <p className="text-xs font-bold text-amber-400 mb-1">PIN Güvenliği</p>
+                    <p className="text-xs font-bold text-amber-400 mb-1">Oturum Güvenliği</p>
                     <p className="text-[10px] text-slate-400 leading-relaxed">
-                      PIN kodu, bilgisayarında çalışan Nexus Agent penceresinde gösterilir. 
-                      Her başlatıldığında yeni bir PIN oluşturulur. 
+                      Eşleştirme sırasında Nexus Agent penceresindeki 4 haneli PIN girilir ve
+                      cihazına özel bir oturum anahtarı verilir. PIN her başlatmada yenilenir;
                       5 yanlış denemeden sonra 30 saniye kilitleme aktif olur.
+                      Agent yeniden başlatılırsa yeniden eşleştirme gerekir.
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-red-400 uppercase">Güvenlik PIN Kodu</label>
-                <input
-                  type="text"
-                  maxLength={4}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-2xl p-4 text-white font-mono font-bold text-2xl tracking-[1em] text-center focus:ring-2 focus:ring-red-500 outline-none transition-all placeholder:tracking-normal placeholder:text-base"
-                  value={localPin}
-                  onChange={e => setLocalPin(e.target.value.replace(/[^0-9]/g, ''))}
-                  placeholder="____"
-                />
-              </div>
-
               <button
-                onClick={handleSaveConnection}
-                className="w-full bg-cyan-500 text-slate-950 font-black py-4 rounded-2xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all"
+                onClick={() => {
+                  onDisconnect();
+                  onToast('Oturum sonlandırıldı. Yeniden eşleştirme gerekiyor.', 'info');
+                }}
+                className="w-full bg-red-500/10 border border-red-500/30 text-red-400 font-black py-4 rounded-2xl active:scale-95 transition-all"
               >
-                PIN'İ KAYDET
+                OTURUMU SONLANDIR & YENİDEN EŞLEŞTİR
               </button>
             </div>
           )}
@@ -237,7 +234,7 @@ export default function SettingsPage({
 
           {/* AI */}
           {activeTab === 'ai' && (
-            <div className="space-y-6">
+            <div className="space-y-6 animate-in fade-in duration-200">
               <div className="bg-slate-800/30 rounded-2xl p-5 border border-white/5 space-y-3">
                 <h3 className="text-xs font-black text-slate-400 uppercase">Yapay Zeka Motoru</h3>
                 <div className="flex items-center justify-between">
@@ -254,6 +251,63 @@ export default function SettingsPage({
                 </div>
               </div>
 
+              {/* Voice Control Settings */}
+              <div className="bg-slate-800/30 rounded-2xl p-5 border border-white/5 space-y-4">
+                <h3 className="text-xs font-black text-slate-400 uppercase">Sesli Kontrol Ayarları</h3>
+                
+                {/* Voice Feedback Toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm text-slate-300 font-bold block">Sesli Geri Bildirim (TTS)</span>
+                    <span className="text-[10px] text-slate-500">Komut sonuçları sesli olarak okunur.</span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer select-none">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only peer" 
+                      checked={voiceFeedback}
+                      onChange={e => onUpdateVoiceFeedback(e.target.checked)}
+                    />
+                    <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500 peer-checked:after:bg-slate-950"></div>
+                  </label>
+                </div>
+
+                {/* Haptic Feedback Toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm text-slate-300 font-bold block">Titreşim Dönütü (Haptic)</span>
+                    <span className="text-[10px] text-slate-500">Mikrofon ve onay anlarında titreşim verir.</span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer select-none">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only peer" 
+                      checked={hapticFeedback}
+                      onChange={e => onUpdateHapticFeedback(e.target.checked)}
+                    />
+                    <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500 peer-checked:after:bg-slate-950"></div>
+                  </label>
+                </div>
+
+                {/* Geri Sayım Süresi Dropdown */}
+                <div className="flex flex-col gap-2">
+                  <div>
+                    <span className="text-sm text-slate-300 font-bold block">Geri Sayım Süresi</span>
+                    <span className="text-[10px] text-slate-500">Ses analiz edildikten sonra otomatik çalıştırılma süresi.</span>
+                  </div>
+                  <select
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs font-bold text-slate-300 outline-none focus:ring-1 focus:ring-cyan-500"
+                    value={countdownDuration}
+                    onChange={e => onUpdateCountdownDuration(Number(e.target.value))}
+                  >
+                    <option value={0}>Devre Dışı (Onay Gerekir)</option>
+                    <option value={3}>3 Saniye</option>
+                    <option value={5}>5 Saniye</option>
+                    <option value={10}>10 Saniye</option>
+                  </select>
+                </div>
+              </div>
+
               <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-2xl p-4">
                 <div className="flex items-start gap-3">
                   <Bot className="text-cyan-400 shrink-0 mt-0.5" size={18} />
@@ -266,6 +320,7 @@ export default function SettingsPage({
                       <li>Tuş basma ve metin yazma</li>
                       <li>Medya kontrolleri</li>
                       <li>Ses seviyesi ayarlama</li>
+                      <li>Sistem güç kontrolleri (Kapat, kilitle, uyut)</li>
                       <li>Zamanlama (X dakika sonra Y yap)</li>
                     </ul>
                   </div>
