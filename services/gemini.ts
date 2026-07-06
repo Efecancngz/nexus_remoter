@@ -57,7 +57,10 @@ export const parseSchedulerPrompt = async (
   try {
     const data = await callAgent('/ai/schedule', ip, token, { prompt });
     return data.plan ?? null;
-  } catch (e) {
+  } catch (e: any) {
+    // An expired/invalid token must reach the UI as a re-pair prompt, not
+    // masquerade as "the AI couldn't parse this".
+    if (e?.message === "AUTH_REQUIRED") throw e;
     console.error("Scheduler AI Error:", e);
     return null;
   }
