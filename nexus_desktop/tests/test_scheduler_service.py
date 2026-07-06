@@ -97,3 +97,25 @@ def test_non_json_serializable_action_is_rejected(monkeypatch, tmp_path):
     assert svc.store.load() == []
     assert svc.active_timers == {}
     assert created_events == []
+
+
+def test_restart_with_future_job_schedules_timer_with_remaining_delay(monkeypatch, tmp_path):
+    FakeTimer.instances.clear()
+    monkeypatch.setattr("threading.Timer", FakeTimer)
+    monkeypatch.setattr(sys, "argv", [str(tmp_path / "NexusAgent.exe")])
+
+    # Simulate a job persisted by a previous run, due 500s from now
+    store_path = os.path.join(str(tmp_path), "data", "schedules.json")
+    pre_store = ScheduleStore(store_path)
+    due_at = time.time() + 500
+    pre_store.save_job("job-1", due_at, {"type": "WAIT", "value": "1", "description": "x"})
+
+    bus = EventBus()
+    svc = SchedulerService("Scheduler", bus)
+    svc.on_start()
+
+    assert "job-1" in svc.active_timers
+    restored_timer = svc.active_timers["job-1"]
+    assert restored_timer.started is True
+    assert 490 <= restored_timer.interval <= 500
+    assert restored_timer.args == ["job-1", {"type": "WAIT", "value": "1", "description": "x"}]
