@@ -137,3 +137,24 @@ def test_regenerates_when_key_file_is_missing(tmp_path):
     store.ensure_cert("192.168.1.5")
 
     assert os.path.exists(key_path)
+
+
+def test_regenerates_when_key_file_is_encrypted(tmp_path):
+    store = CertStore(str(tmp_path))
+    cert_path, key_path = store.ensure_cert("192.168.1.5")
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    encrypted_key_bytes = key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.BestAvailableEncryption(b"some-password"),
+    )
+    with open(key_path, "wb") as f:
+        f.write(encrypted_key_bytes)
+
+    # Must not raise, and must regenerate a usable (unencrypted) key.
+    new_cert_path, new_key_path = store.ensure_cert("192.168.1.5")
+
+    with open(new_key_path, "rb") as f:
+        loaded_key = serialization.load_pem_private_key(f.read(), password=None)
+    assert loaded_key.key_size == 2048
