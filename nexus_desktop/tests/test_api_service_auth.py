@@ -10,7 +10,8 @@ from services.api_service import ApiService
 
 
 @pytest.fixture
-def client():
+def client(tmp_path, monkeypatch):
+    monkeypatch.setattr(sys, "argv", [str(tmp_path / "NexusAgent.exe")])
     bus = EventBus()
     sec = SecurityManager()
     svc = ApiService("API", bus, sec)
