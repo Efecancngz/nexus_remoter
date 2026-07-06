@@ -176,6 +176,49 @@ def test_restart_with_multiple_overdue_jobs_all_get_timers(monkeypatch, tmp_path
     assert svc.store.load() == []
 
 
+def test_restart_skips_non_dict_persisted_entry_and_restores_others(monkeypatch, tmp_path):
+    FakeTimer.instances.clear()
+    monkeypatch.setattr("threading.Timer", FakeTimer)
+    monkeypatch.setattr(sys, "argv", [str(tmp_path / "NexusAgent.exe")])
+
+    store_path = os.path.join(str(tmp_path), "data", "schedules.json")
+    pre_store = ScheduleStore(store_path)
+    due_at = time.time() + 500
+    pre_store.save_job("job-good", due_at, {"type": "WAIT", "value": "1", "description": "x"})
+
+    # Manually corrupt the store with a non-dict entry alongside the valid one
+    jobs = pre_store.load()
+    jobs.append("garbage")
+    pre_store._write(jobs)
+
+    bus = EventBus()
+    svc = SchedulerService("Scheduler", bus)
+    svc.on_start()  # must not raise
+
+    assert "job-good" in svc.active_timers
+    assert len(svc.active_timers) == 1
+
+
+def test_restart_skips_entry_with_non_numeric_due_at_and_restores_others(monkeypatch, tmp_path):
+    FakeTimer.instances.clear()
+    monkeypatch.setattr("threading.Timer", FakeTimer)
+    monkeypatch.setattr(sys, "argv", [str(tmp_path / "NexusAgent.exe")])
+
+    store_path = os.path.join(str(tmp_path), "data", "schedules.json")
+    pre_store = ScheduleStore(store_path)
+    due_at = time.time() + 500
+    pre_store.save_job("job-good", due_at, {"type": "WAIT", "value": "1", "description": "x"})
+    pre_store.save_job("job-bad-due-at", "soon", {"type": "WAIT", "value": "2", "description": "y"})
+
+    bus = EventBus()
+    svc = SchedulerService("Scheduler", bus)
+    svc.on_start()  # must not raise
+
+    assert "job-good" in svc.active_timers
+    assert "job-bad-due-at" not in svc.active_timers
+    assert len(svc.active_timers) == 1
+
+
 def test_on_stop_does_not_remove_persisted_jobs(monkeypatch, tmp_path):
     svc, bus = make_service(monkeypatch, tmp_path)
 
