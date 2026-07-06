@@ -119,3 +119,58 @@ def test_restart_with_future_job_schedules_timer_with_remaining_delay(monkeypatc
     assert restored_timer.started is True
     assert 490 <= restored_timer.interval <= 500
     assert restored_timer.args == ["job-1", {"type": "WAIT", "value": "1", "description": "x"}]
+
+
+def test_restart_with_overdue_job_gets_zero_delay_timer_and_fires(monkeypatch, tmp_path):
+    FakeTimer.instances.clear()
+    monkeypatch.setattr("threading.Timer", FakeTimer)
+    monkeypatch.setattr(sys, "argv", [str(tmp_path / "NexusAgent.exe")])
+
+    store_path = os.path.join(str(tmp_path), "data", "schedules.json")
+    pre_store = ScheduleStore(store_path)
+    overdue_due_at = time.time() - 3600  # 1 hour in the past
+    pre_store.save_job("job-overdue", overdue_due_at, {"type": "SYSTEM_POWER", "value": "lock", "description": "x"})
+
+    executed = []
+    bus = EventBus()
+    bus.subscribe("COMMAND_RECEIVED", lambda event: executed.append(event.payload))
+
+    svc = SchedulerService("Scheduler", bus)
+    svc.on_start()
+
+    restored_timer = svc.active_timers["job-overdue"]
+    assert restored_timer.interval == 0.0
+
+    # Simulate the timer firing (as it would almost immediately in real usage)
+    restored_timer.fire()
+
+    assert executed == [{"type": "SYSTEM_POWER", "value": "lock", "description": "x"}]
+    assert svc.store.load() == []  # removed after execution
+
+
+def test_restart_with_multiple_overdue_jobs_all_get_timers(monkeypatch, tmp_path):
+    FakeTimer.instances.clear()
+    monkeypatch.setattr("threading.Timer", FakeTimer)
+    monkeypatch.setattr(sys, "argv", [str(tmp_path / "NexusAgent.exe")])
+
+    store_path = os.path.join(str(tmp_path), "data", "schedules.json")
+    pre_store = ScheduleStore(store_path)
+    past = time.time() - 100
+    pre_store.save_job("job-a", past, {"type": "WAIT", "value": "1", "description": "a"})
+    pre_store.save_job("job-b", past, {"type": "WAIT", "value": "2", "description": "b"})
+    pre_store.save_job("job-c", past, {"type": "WAIT", "value": "3", "description": "c"})
+
+    executed = []
+    bus = EventBus()
+    bus.subscribe("COMMAND_RECEIVED", lambda event: executed.append(event.payload["value"]))
+
+    svc = SchedulerService("Scheduler", bus)
+    svc.on_start()
+
+    assert set(svc.active_timers.keys()) == {"job-a", "job-b", "job-c"}
+
+    for job_id in ("job-a", "job-b", "job-c"):
+        svc.active_timers[job_id].fire()
+
+    assert sorted(executed) == ["1", "2", "3"]
+    assert svc.store.load() == []
