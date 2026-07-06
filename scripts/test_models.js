@@ -1,7 +1,11 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const apiKey = "AIzaSyAzuOOism8LhFk5SQ4fAY1_gc97La855yM";
+const apiKey = process.env.GEMINI_API_KEY;
+if (!apiKey) {
+    console.error("Set GEMINI_API_KEY in your environment before running this script.");
+    process.exit(1);
+}
 
 const genAI = new GoogleGenerativeAI(apiKey);
 
