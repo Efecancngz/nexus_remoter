@@ -75,3 +75,43 @@ def test_load_with_non_list_json_returns_empty_list(tmp_path):
 
     store = ScheduleStore(str(path))
     assert store.load() == []
+
+
+import os as _os
+import pytest
+
+
+def test_write_failure_leaves_previous_file_intact(tmp_path, monkeypatch):
+    path = tmp_path / "schedules.json"
+    store = ScheduleStore(str(path))
+    store.save_job("job-1", 100.0, {"type": "WAIT", "value": "1"})
+
+    def boom(src, dst):
+        raise OSError("simulated crash before rename")
+
+    monkeypatch.setattr(_os, "replace", boom)
+
+    with pytest.raises(OSError):
+        store.save_job("job-2", 200.0, {"type": "WAIT", "value": "2"})
+
+    monkeypatch.undo()
+    jobs = store.load()
+    assert len(jobs) == 1
+    assert jobs[0]["job_id"] == "job-1"
+
+
+def test_write_failure_does_not_leave_temp_files_behind(tmp_path, monkeypatch):
+    path = tmp_path / "schedules.json"
+    store = ScheduleStore(str(path))
+
+    def boom(src, dst):
+        raise OSError("simulated crash before rename")
+
+    monkeypatch.setattr(_os, "replace", boom)
+
+    with pytest.raises(OSError):
+        store.save_job("job-1", 100.0, {"type": "WAIT", "value": "1"})
+
+    monkeypatch.undo()
+    leftover = [f for f in _os.listdir(tmp_path) if f != "schedules.json"]
+    assert leftover == []

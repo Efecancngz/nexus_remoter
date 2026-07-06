@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import tempfile
 
 
 class ScheduleStore:
@@ -42,5 +43,12 @@ class ScheduleStore:
         directory = os.path.dirname(self.path)
         if directory:
             os.makedirs(directory, exist_ok=True)
-        with open(self.path, 'w', encoding='utf-8') as f:
-            json.dump(jobs, f)
+        fd, tmp_path = tempfile.mkstemp(dir=directory or ".", prefix=".schedules_", suffix=".tmp")
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                json.dump(jobs, f)
+            os.replace(tmp_path, self.path)
+        except Exception:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            raise
