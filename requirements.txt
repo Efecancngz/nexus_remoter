@@ -7,3 +7,4 @@ psutil
 pystray
 Pillow
 python-dotenv
+google-generativeai

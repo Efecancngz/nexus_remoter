@@ -21,7 +21,7 @@ export default function SchedulerModal({ pcIpAddress, accessToken, onClose, onTo
     setPrompt("Zekâ işleniyor...");
     
     try {
-      const plan = await parseSchedulerPrompt(originalText);
+      const plan = await parseSchedulerPrompt(originalText, pcIpAddress, accessToken);
       if (plan) {
         const minutes = Math.round(plan.seconds / 60);
 

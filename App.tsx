@@ -155,7 +155,7 @@ export default function App() {
     }
 
     try {
-      const steps = await generateMacroFromAudio(base64Audio, mimeType);
+      const steps = await generateMacroFromAudio(base64Audio, mimeType, connection.pcIpAddress, connection.accessToken);
       if (steps && steps.length > 0) {
         const desc = steps[0].description || "Komut planlandı.";
         if (voiceFeedback && 'speechSynthesis' in window) {
@@ -266,9 +266,7 @@ export default function App() {
     setAiStatus("Zekâ işleniyor...");
 
     try {
-      const newSteps = await generateMacro(promptValue, 0, (attempt, wait) => {
-        setAiStatus(`Yoğunluk var. ${attempt}. deneme ${wait / 1000}sn sonra...`);
-      });
+      const newSteps = await generateMacro(promptValue, connection.pcIpAddress, connection.accessToken);
 
       if (newSteps && newSteps.length > 0) {
         setEditingBtn(prev => {
@@ -429,7 +427,7 @@ export default function App() {
                     if (!aiPrompt.trim()) return;
                     setIsAiLoading(true);
                     try {
-                      const newSteps = await generateMacro(aiPrompt.trim());
+                      const newSteps = await generateMacro(aiPrompt.trim(), connection.pcIpAddress, connection.accessToken);
                       if (newSteps && newSteps.length > 0) {
                         const newBtn: ControlButton = {
                           id: Date.now().toString(),
