@@ -174,3 +174,32 @@ def test_restart_with_multiple_overdue_jobs_all_get_timers(monkeypatch, tmp_path
 
     assert sorted(executed) == ["1", "2", "3"]
     assert svc.store.load() == []
+
+
+def test_on_stop_does_not_remove_persisted_jobs(monkeypatch, tmp_path):
+    svc, bus = make_service(monkeypatch, tmp_path)
+
+    bus.publish("SCHEDULE_ACTION", {"seconds": 600, "action": {"type": "WAIT", "value": "1", "description": "x"}})
+    assert len(svc.store.load()) == 1
+
+    svc.on_stop()
+
+    assert len(svc.store.load()) == 1
+    assert svc.active_timers == {}
+
+
+def test_full_stop_restart_cycle_recovers_pending_job(monkeypatch, tmp_path):
+    svc, bus = make_service(monkeypatch, tmp_path)
+
+    bus.publish("SCHEDULE_ACTION", {"seconds": 600, "action": {"type": "WAIT", "value": "1", "description": "x"}})
+    job_id = svc.store.load()[0]["job_id"]
+
+    svc.on_stop()
+    assert svc.active_timers == {}
+
+    # Simulate a fresh agent process starting up again with the same bus/store path
+    svc2 = SchedulerService("Scheduler", bus)
+    svc2.on_start()
+
+    assert job_id in svc2.active_timers
+    assert len(svc2.store.load()) == 1
