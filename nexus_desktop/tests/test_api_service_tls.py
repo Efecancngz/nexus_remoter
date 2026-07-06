@@ -18,7 +18,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(api_service_module, "get_local_ip", lambda: "192.168.1.5")
     bus = EventBus()
     sec = SecurityManager()
-    svc = ApiService("API", bus, sec)
+    svc = ApiService("API", bus, sec, start_server=False)
     svc.on_start()
     svc.app.testing = True
     return svc.app.test_client(), svc, tmp_path

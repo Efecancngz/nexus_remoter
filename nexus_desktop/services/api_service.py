@@ -17,11 +17,12 @@ log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
 class ApiService(Service):
-    def __init__(self, name, event_bus, security_manager, media_service=None):
+    def __init__(self, name, event_bus, security_manager, media_service=None, start_server: bool = True):
         super().__init__(name, event_bus)
         self.security = security_manager
         self.media_service = media_service
         self.last_stats = {"cpu": 0, "ram": 0, "battery": "N/A", "volume": 0}
+        self._start_server = start_server
 
     def on_start(self):
         self.app = Flask(__name__)
@@ -53,15 +54,17 @@ class ApiService(Service):
 
         # Subscribe to stats updates
         self.bus.subscribe("SYSTEM_STATS_UPDATED", self.on_stats_update)
-        # Start proactive polling
-        self.start_stats_polling()
-        
+
         self.log = logging.getLogger('werkzeug')
         self.log.setLevel(logging.ERROR)
-        
-        # Run Flask in a separate thread
-        self._thread = threading.Thread(target=self._run_server, daemon=True)
-        self._thread.start()
+
+        if self._start_server:
+            # Start proactive polling
+            self.start_stats_polling()
+
+            # Run Flask in a separate thread
+            self._thread = threading.Thread(target=self._run_server, daemon=True)
+            self._thread.start()
 
     def _reject_rebinding(self):
         host = (request.host or '').split(':')[0].strip()
