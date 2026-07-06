@@ -5,6 +5,7 @@ import threading
 from core.service_interface import Service
 import logging
 import time
+import ipaddress
 
 # Suppress Flask logging
 log = logging.getLogger('werkzeug')
@@ -19,10 +20,18 @@ class ApiService(Service):
 
     def on_start(self):
         self.app = Flask(__name__)
+        # Allow cross-origin use from the mobile web app while still relying on the
+        # session token for authorization. The token lives in the legit app's
+        # per-origin storage, so a hostile site cannot read it even with CORS open.
         CORS(self.app)
-        
+
+        # Reject requests whose Host header is a domain name (DNS-rebinding
+        # attempts). Legitimate clients always connect to the agent by raw LAN IP
+        # or localhost, so a hostname there means someone rebound a domain to us.
+        self.app.before_request(self._reject_rebinding)
+
         # Security instance is now injected via __init__
-        
+
         # Define routes
         self.app.add_url_rule('/ping', 'ping', self.ping, methods=['GET'])
         self.app.add_url_rule('/pair', 'pair', self.pair, methods=['POST'])
@@ -40,6 +49,17 @@ class ApiService(Service):
         # Run Flask in a separate thread
         self._thread = threading.Thread(target=self._run_server, daemon=True)
         self._thread.start()
+
+    def _reject_rebinding(self):
+        host = (request.host or '').split(':')[0].strip()
+        if host in ('localhost', ''):
+            return None
+        try:
+            ipaddress.ip_address(host)
+        except ValueError:
+            logging.warning("[Security] Rejected request with non-IP Host header: %r", host)
+            return jsonify({"success": False, "error": "Invalid host"}), 403
+        return None
 
     def _run_server(self):
         self.app.run(host='0.0.0.0', port=8080, debug=False, use_reloader=False)
@@ -66,13 +86,13 @@ class ApiService(Service):
         
         # Enforce Security
         if not self.security.validate(incoming_pin):
-             logging.warning(f"[AuthFail] Expected: '{self.security.pin}' | Received: '{incoming_pin}'")
+             logging.warning("[AuthFail] Rejected /execute request with invalid credentials")
              return jsonify({"success": False, "error": "Unauthorized: Invalid PIN"}), 401
-        
-        logging.info(f"[AuthSuccess] Command: {data}")
-        
-        # Route commands to the correct service via EventBus
+
         action_type = data.get('type', '')
+        logging.info("[AuthSuccess] Command accepted: type=%s", action_type)
+
+        # Route commands to the correct service via EventBus
         
         # Media commands → MediaService
         if action_type == 'VOLUME_SET':

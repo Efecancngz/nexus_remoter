@@ -1,3 +1,4 @@
+import hmac
 import random
 import string
 import time
@@ -29,7 +30,7 @@ class SecurityManager:
                 logging.warning(f"[Security] Locked out. {remaining}s remaining. Rejecting attempt.")
                 return False
             
-            if incoming_pin == self.pin:
+            if hmac.compare_digest(str(incoming_pin), self.pin):
                 # Reset failed attempts on success
                 self._failed_attempts = 0
                 return True
