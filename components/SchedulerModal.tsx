@@ -46,7 +46,11 @@ export default function SchedulerModal({ pcIpAddress, accessToken, onClose, onTo
         setPrompt(originalText);
       }
     } catch (e: any) {
-      onToast("Hata: " + e.message, 'error');
+      if (e?.message === "AUTH_REQUIRED") {
+        onToast("⚠️ Oturum geçersiz: Lütfen yeniden eşleştirin!", 'error');
+      } else {
+        onToast("Hata: " + e.message, 'error');
+      }
       setPrompt(originalText);
     } finally {
       setIsLoading(false);
