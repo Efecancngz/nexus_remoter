@@ -3,6 +3,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import threading
 from core.service_interface import Service
+from services.ai_service import AiService
 import logging
 import time
 import ipaddress
@@ -38,7 +39,10 @@ class ApiService(Service):
         self.app.add_url_rule('/verify', 'verify', self.verify, methods=['GET'])
         self.app.add_url_rule('/execute', 'execute', self.execute, methods=['POST'])
         self.app.add_url_rule('/stats', 'stats', self.get_stats, methods=['GET'])
-        
+
+        # Server-side Gemini proxy (keeps the API key off the client)
+        AiService(self.security).register(self.app)
+
         # Subscribe to stats updates
         self.bus.subscribe("SYSTEM_STATS_UPDATED", self.on_stats_update)
         # Start proactive polling
