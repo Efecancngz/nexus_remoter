@@ -16,8 +16,16 @@ class ScheduleStore:
     def load(self):
         if not os.path.exists(self.path):
             return []
-        with open(self.path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+        try:
+            with open(self.path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            logging.warning(f"[ScheduleStore] Failed to load {self.path}: {e}")
+            return []
+        if not isinstance(data, list):
+            logging.warning(f"[ScheduleStore] Expected a list in {self.path}, got {type(data).__name__}")
+            return []
+        return data
 
     def save_job(self, job_id, due_at, action):
         jobs = self.load()

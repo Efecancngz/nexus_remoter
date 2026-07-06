@@ -59,3 +59,19 @@ def test_remove_nonexistent_job_is_a_no_op(tmp_path):
 
     jobs = store.load()
     assert len(jobs) == 1
+
+
+def test_load_with_corrupt_json_returns_empty_list(tmp_path):
+    path = tmp_path / "schedules.json"
+    path.write_text("{not valid json!!", encoding="utf-8")
+
+    store = ScheduleStore(str(path))
+    assert store.load() == []
+
+
+def test_load_with_non_list_json_returns_empty_list(tmp_path):
+    path = tmp_path / "schedules.json"
+    path.write_text('{"unexpected": "object"}', encoding="utf-8")
+
+    store = ScheduleStore(str(path))
+    assert store.load() == []
