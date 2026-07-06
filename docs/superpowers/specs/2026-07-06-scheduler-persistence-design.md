@@ -50,8 +50,11 @@ A small `ScheduleStore` class, decoupled from timer/threading logic:
 - `save_job(job_id, due_at, action)` — add/update one job and persist.
 - `remove_job(job_id)` — remove one job and persist.
 
-Internally it holds the full job list in memory and rewrites the whole file on
-each mutation (simplicity over performance — appropriate at this scale).
+It keeps no in-memory cache: `save_job`/`remove_job` each call `load()` to read
+the current full job list, apply the change, and rewrite the whole file.
+Re-reading on every mutation is simpler than maintaining a cache in sync with
+disk, and costs nothing measurable at this scale (a handful of jobs, mutated
+rarely — scheduling or cancelling an action, not a hot path).
 
 **Concurrency and crash-safety:** `ScheduleStore` is not internally
 thread-safe — callers must serialize access. `SchedulerService` calls every

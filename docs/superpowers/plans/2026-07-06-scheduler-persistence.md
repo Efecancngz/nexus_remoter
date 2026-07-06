@@ -822,26 +822,26 @@ In `nexus_desktop/services/scheduler_service.py`, update `on_start` and add `_re
     def _restore_persisted_jobs(self):
         now = time.time()
         with self.lock:
-            persisted = self.store.load()
+            for job in self.store.load():
+                job_id = job.get('job_id')
+                due_at = job.get('due_at', 0)
+                action = job.get('action')
+                if not job_id or action is None:
+                    logging.warning(f"Skipping malformed persisted job: {job!r}")
+                    continue
 
-        for job in persisted:
-            job_id = job.get('job_id')
-            due_at = job.get('due_at', 0)
-            action = job.get('action')
-            if not job_id or action is None:
-                logging.warning(f"Skipping malformed persisted job: {job!r}")
-                continue
+                delay = max(0.0, due_at - now)
+                logging.info(f"Restoring persisted job {job_id}, firing in {delay:.1f}s")
 
-            delay = max(0.0, due_at - now)
-            logging.info(f"Restoring persisted job {job_id}, firing in {delay:.1f}s")
-
-            timer = threading.Timer(delay, self._execute_job, [job_id, action])
-            with self.lock:
+                timer = threading.Timer(delay, self._execute_job, [job_id, action])
                 self.active_timers[job_id] = timer
-            timer.start()
+                timer.start()
 ```
 
-Note: `self.store.load()` is called while holding `self.lock`, matching the spec's
+Note: the whole method runs under one `with self.lock:` block, including `timer.start()`
+(which returns immediately — starting the underlying OS thread — so it's safe to call while
+holding the lock). This is simpler and more consistent than re-acquiring the lock per
+iteration, and still matches the spec's
 invariant that every `ScheduleStore` call goes through the service's existing lock —
 even though nothing else can race with it this early in startup, consistency here
 avoids a future maintainer copying the unlocked pattern into a context where it matters.
