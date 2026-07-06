@@ -8,7 +8,8 @@ class SystemService(Service):
         self.bus.subscribe("GET_SYSTEM_STATS", self.handle_get_stats)
         try:
             self.platform_info = platform.platform()
-        except:
+        except Exception as e:
+            logging.warning(f"Could not determine platform info: {e}")
             self.platform_info = "Unknown"
         logging.info("SystemService started")
 
