@@ -16,10 +16,20 @@ Names cover the agent's current LAN IP, `127.0.0.1`, and `localhost`, with a
 - **Trust step:** a device must accept the certificate once before pairing
   will work — open `https://<pc-ip>:8080/` directly (a link for this is
   shown in the app's connect screen), accept the browser's warning, then
-  return to the app. This is a one-time step per device. iOS Safari has
-  known rough edges trusting a self-signed cert inside an installed
-  (standalone) PWA specifically; if pairing fails after accepting the
-  warning, try opening the trust link in a normal Safari tab first.
+  return to the app. This is a one-time step per device, and it works
+  reliably in a normal Safari tab on iOS and in Chrome/Android.
+  **Known limitation — iOS standalone (installed) PWA:** trusting the
+  cert via the Safari-tab workaround does not carry over to the app once
+  it's installed to the home screen. A standalone PWA on iOS renders
+  through `WKWebView`, while the trust link opens in
+  `SFSafariViewController`; the two do not share certificate-trust
+  exceptions, so `fetch()` calls from the installed app will still fail
+  even after the warning is accepted in a tab. This is a platform
+  limitation, not a bug in this project, and there is currently no
+  supported fix here — the only reliable path on iOS is installing the
+  certificate as a configuration profile (Settings → General → VPN &
+  Device Management → enable full trust for the profile), which this
+  project does not currently provide tooling or instructions for.
 - **Cert regeneration:** the agent regenerates its certificate automatically
   if its LAN IP changes (e.g. a new DHCP lease) or if the existing cert/key
   files are missing, corrupt, or expired. An IP change requires re-accepting
