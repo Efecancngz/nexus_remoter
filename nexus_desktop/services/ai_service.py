@@ -34,6 +34,14 @@ Görevin: Kullanıcı isteğini bilgisayar otomasyon adımlarına çevirmek.
 - "Sesi kapat": {{ "type": "VOLUME_MUTE", "value": "true", "description": "Ses kapatılıyor" }}
 - "Youtube'u aç": {{ "type": "OPEN_URL", "value": "https://youtube.com", "description": "Youtube açılıyor" }}
 - "Bilgisayarı kilitle": {{ "type": "SYSTEM_POWER", "value": "lock", "description": "Bilgisayar kilitleniyor" }}
+- "Bilgisayarı kapat": {{ "type": "SYSTEM_POWER", "value": "shutdown", "description": "Bilgisayar kapatılıyor" }}
+- "Hesap makinesi aç": {{ "type": "LAUNCH_APP", "value": "calculator", "description": "Hesap makinesi açılıyor" }}
+
+Önemli kısıtlama: Kapatma/yeniden başlatma/uyku/kilitleme için HER ZAMAN
+SYSTEM_POWER kullan (value: lock|shutdown|restart|sleep). Uygulama açmak için
+HER ZAMAN LAUNCH_APP kullan. COMMAND tipini sadece agent'ın izin verdiği kısa
+uygulama adları için kullan (örn: "calc", "notepad") — asla ham shell
+komutları (örn: "shutdown /s /t 0", "del ...") üretme, bunlar reddedilir.
 
 Ardışık işlemlerde araya mutlaka bekleme (WAIT) koy.
 Kullanılabilir Tipler: {", ".join(_ACTION_TYPES)}"""
@@ -41,6 +49,10 @@ Kullanılabilir Tipler: {", ".join(_ACTION_TYPES)}"""
 _SCHEDULE_INSTRUCTION = """Sen bir ZAMANLAYICI asistanısın.
 Kullanıcı "1 saat sonra kapat" gibi komutlar verecek. Bunu JSON'a çevir.
 Çıktı: { "seconds": <number>, "action": { "type": <ActionType>, "value": <str>, "description": <str> } }
+Kapatma/yeniden başlatma/uyku/kilitleme için action.type = "SYSTEM_POWER" ve
+value = lock|shutdown|restart|sleep kullan. Uygulama açmak için
+action.type = "LAUNCH_APP" kullan. Ham shell komutu üretme.
+Örnek: "10 dakika sonra kapat" -> { "seconds": 600, "action": { "type": "SYSTEM_POWER", "value": "shutdown", "description": "Sistem kapatılıyor" } }
 Sadece saf JSON döndür."""
 
 _STEP_SCHEMA = {
