@@ -1,11 +1,10 @@
 import tkinter as tk
 from tkinter import ttk
 import threading
-import time
+import logging
 import psutil
 from core.service_interface import Service
 from utils.network import get_local_ip
-from core.security_manager import SecurityManager
 
 class GuiService(Service):
     def __init__(self, name, event_bus, security_manager):
@@ -23,7 +22,6 @@ class GuiService(Service):
         
     def _run_gui_loop(self):
         try:
-            import logging
             logging.info("GUI Loop Starting")
             
             self.root = tk.Tk()
@@ -58,9 +56,6 @@ class GuiService(Service):
             entry_ip.configure(state='readonly')
             entry_ip.pack(pady=5, ipadx=10, ipady=5)
             
-            # from core.security_manager import SecurityManager
-            # sec = SecurityManager()
-            
             lbl_pin_title = tk.Label(self.root, text="SECURITY PIN:", font=("Arial", 8, "bold"), fg="#666666", bg="#f0f0f0")
             lbl_pin_title.pack(pady=(15, 0))
             
@@ -94,13 +89,13 @@ class GuiService(Service):
             self.lbl_cpu.config(text=f"CPU: {cpu}%")
             self.lbl_ram.config(text=f"RAM: {ram}%")
         except Exception as e:
-            pass
-            
+            logging.warning(f"Failed to update GUI stats: {e}")
+
+
         if hasattr(self, 'root') and self.root:
             self.root.after(1000, self.update_stats)
 
     def show_window(self, event=None):
-        import logging
         logging.info("Show Window Triggered")
         if hasattr(self, 'root') and self.root:
             try:
@@ -119,7 +114,3 @@ class GuiService(Service):
     def on_stop(self):
         if hasattr(self, 'root'):
             self.root.quit()
-
-def run_gui_thread():
-    # Helper not needed anymore as Service handles logic
-    pass
