@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Shield, Wifi, Loader2, ArrowRight } from 'lucide-react';
+import { Shield, Wifi, Loader2, ArrowRight, ExternalLink } from 'lucide-react';
+import { sanitizeIp } from '../services/agentUrl';
 
 interface ConnectScreenProps {
   onPair: (ip: string, pin: string) => Promise<{ success: boolean; error?: string }>;
@@ -12,6 +13,8 @@ export default function ConnectScreen({ onPair, initialIp = '', initialPin = '' 
   const [pin, setPin] = useState(initialPin);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const trustUrl = ip.trim() ? `https://${sanitizeIp(ip)}:8080/` : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,6 +87,18 @@ export default function ConnectScreen({ onPair, initialIp = '', initialPin = '' 
                 />
               </div>
             </div>
+
+            {trustUrl && (
+              <a
+                href={trustUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-1.5 text-[10px] font-bold text-cyan-400/80 hover:text-cyan-300 transition-colors py-1"
+              >
+                <ExternalLink size={12} />
+                İlk bağlantı mı? Önce sertifikayı onaylayın
+              </a>
+            )}
 
             {/* PIN Code Input */}
             <div className="space-y-1.5">
