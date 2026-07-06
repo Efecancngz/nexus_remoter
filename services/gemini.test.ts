@@ -153,11 +153,18 @@ describe('gemini service (agent /ai/* proxy client)', () => {
       expect(result).toBeNull();
     });
 
-    it('swallows errors and returns null instead of throwing', async () => {
+    it('propagates AUTH_REQUIRED on a 401 so the UI can trigger re-pairing', async () => {
       const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
       fetchMock.mockResolvedValue(jsonResponse(401, {}));
 
-      const result = await parseSchedulerPrompt('x', '1.2.3.4', 'bad-tok');
+      await expect(parseSchedulerPrompt('x', '1.2.3.4', 'bad-tok')).rejects.toThrow('AUTH_REQUIRED');
+    });
+
+    it('swallows non-auth errors and returns null instead of throwing', async () => {
+      const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+      fetchMock.mockResolvedValue(jsonResponse(502, { success: false, error: 'upstream boom' }));
+
+      const result = await parseSchedulerPrompt('x', '1.2.3.4', 'tok');
 
       expect(result).toBeNull();
     });
