@@ -18,8 +18,9 @@ Run the `NexusAgent.exe` on your PC. (No installation required, portable).
 ### 3. 📱 Connect
 1.  Open the web app on your phone.
 2.  Click the **NEXUS** logo in the top-left.
-3.  Enter the **PIN Code** and **IP Address** shown on your PC screen.
-4.  You are ready to go!
+3.  Enter the **IP Address** shown on your PC screen.
+4.  **First time on this device?** Tap the "trust the certificate" link that appears below the IP field (it opens `https://<pc-ip>:8080/`), accept the browser's security warning once, and come back. The agent uses a self-signed HTTPS certificate; this one-time step is required per device. See [SECURITY.md](SECURITY.md) for details — note that iOS installed-PWA (home screen) mode is currently not supported for this trust step.
+5.  Enter the **PIN Code** shown on your PC screen and connect. You are ready to go!
 
 ---
 
@@ -35,16 +36,19 @@ Instead of the EXE, you can run the raw Python code:
 
 ```bash
 # Install dependencies
-pip install flask flask-cors pyinstaller psutil
+pip install -r requirements.txt
 
 # Run the agent
 python nexus_desktop/main.py
 ```
 
+For the AI features (voice/macro generation), create a `.env` file in the repo root with `GEMINI_API_KEY="your-key"` — the key stays on the PC; it is never shipped to the phone. On first start the agent also generates a self-signed TLS certificate under `data/certs/` automatically.
+
 ### 📦 Build Your Own EXE
 Modified the code and want to repackage it? Use this magic command:
 
 ```bash
+pip install pyinstaller
 cd nexus_desktop
 # Package with PyInstaller (Collecting all modules)
 py -m PyInstaller --onefile --noconsole --name "NexusAgent" --paths . --collect-all services --collect-all core --collect-all utils main.py
