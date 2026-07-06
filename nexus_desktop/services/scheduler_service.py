@@ -61,14 +61,16 @@ class SchedulerService(Service):
             if job_id in self.active_timers:
                 self.active_timers[job_id].cancel()
                 del self.active_timers[job_id]
+                self.store.remove_job(job_id)
                 logging.info(f"Cancelled job {job_id}")
                 self.bus.publish("SCHEDULE_CANCELLED", {"job_id": job_id})
 
     def _execute_job(self, job_id, action):
-        # Remove from active list
+        # Remove from active list and persisted store
         with self.lock:
             if job_id in self.active_timers:
                 del self.active_timers[job_id]
+            self.store.remove_job(job_id)
 
         logging.info(f"Executing scheduled job {job_id}")
 

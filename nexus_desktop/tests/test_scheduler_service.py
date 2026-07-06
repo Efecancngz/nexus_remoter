@@ -61,3 +61,25 @@ def test_scheduled_job_data_file_is_under_argv_data_dir(monkeypatch, tmp_path):
     svc, bus = make_service(monkeypatch, tmp_path)
     expected_path = os.path.join(str(tmp_path), "data", "schedules.json")
     assert os.path.abspath(svc.store.path) == os.path.abspath(expected_path)
+
+
+def test_cancel_removes_job_from_store(monkeypatch, tmp_path):
+    svc, bus = make_service(monkeypatch, tmp_path)
+
+    bus.publish("SCHEDULE_ACTION", {"seconds": 600, "action": {"type": "WAIT", "value": "1", "description": "x"}})
+    job_id = svc.store.load()[0]["job_id"]
+
+    bus.publish("CANCEL_SCHEDULE", {"job_id": job_id})
+
+    assert svc.store.load() == []
+
+
+def test_executed_job_is_removed_from_store(monkeypatch, tmp_path):
+    svc, bus = make_service(monkeypatch, tmp_path)
+
+    bus.publish("SCHEDULE_ACTION", {"seconds": 600, "action": {"type": "WAIT", "value": "1", "description": "x"}})
+    timer = FakeTimer.instances[-1]
+
+    timer.fire()
+
+    assert svc.store.load() == []
