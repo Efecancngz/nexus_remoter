@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Clock, Sparkles } from 'lucide-react';
 import { parseSchedulerPrompt } from '../services/gemini';
+import { buildAgentUrl } from '../services/agentUrl';
 
 interface SchedulerModalProps {
   pcIpAddress: string;
@@ -25,7 +26,7 @@ export default function SchedulerModal({ pcIpAddress, accessToken, onClose, onTo
       if (plan) {
         const minutes = Math.round(plan.seconds / 60);
 
-        await fetch(`http://${pcIpAddress}:8080/execute`, {
+        await fetch(buildAgentUrl(pcIpAddress, '/execute'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

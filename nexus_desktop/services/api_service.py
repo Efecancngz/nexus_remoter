@@ -7,17 +7,22 @@ from services.ai_service import AiService
 import logging
 import time
 import ipaddress
+import os
+import sys
+from core.cert_store import CertStore
+from utils.network import get_local_ip
 
 # Suppress Flask logging
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
 class ApiService(Service):
-    def __init__(self, name, event_bus, security_manager, media_service=None):
+    def __init__(self, name, event_bus, security_manager, media_service=None, start_server: bool = True):
         super().__init__(name, event_bus)
         self.security = security_manager
         self.media_service = media_service
         self.last_stats = {"cpu": 0, "ram": 0, "battery": "N/A", "volume": 0}
+        self._start_server = start_server
 
     def on_start(self):
         self.app = Flask(__name__)
@@ -25,6 +30,9 @@ class ApiService(Service):
         # session token for authorization. The token lives in the legit app's
         # per-origin storage, so a hostile site cannot read it even with CORS open.
         CORS(self.app)
+
+        cert_dir = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "data", "certs")
+        self.cert_path, self.key_path = CertStore(cert_dir).ensure_cert(get_local_ip())
 
         # Reject requests whose Host header is a domain name (DNS-rebinding
         # attempts). Legitimate clients always connect to the agent by raw LAN IP
@@ -39,21 +47,24 @@ class ApiService(Service):
         self.app.add_url_rule('/verify', 'verify', self.verify, methods=['GET'])
         self.app.add_url_rule('/execute', 'execute', self.execute, methods=['POST'])
         self.app.add_url_rule('/stats', 'stats', self.get_stats, methods=['GET'])
+        self.app.add_url_rule('/', 'cert_landing', self.cert_landing, methods=['GET'])
 
         # Server-side Gemini proxy (keeps the API key off the client)
         AiService(self.security).register(self.app)
 
         # Subscribe to stats updates
         self.bus.subscribe("SYSTEM_STATS_UPDATED", self.on_stats_update)
-        # Start proactive polling
-        self.start_stats_polling()
-        
+
         self.log = logging.getLogger('werkzeug')
         self.log.setLevel(logging.ERROR)
-        
-        # Run Flask in a separate thread
-        self._thread = threading.Thread(target=self._run_server, daemon=True)
-        self._thread.start()
+
+        if self._start_server:
+            # Start proactive polling
+            self.start_stats_polling()
+
+            # Run Flask in a separate thread
+            self._thread = threading.Thread(target=self._run_server, daemon=True)
+            self._thread.start()
 
     def _reject_rebinding(self):
         host = (request.host or '').split(':')[0].strip()
@@ -67,10 +78,18 @@ class ApiService(Service):
         return None
 
     def _run_server(self):
-        self.app.run(host='0.0.0.0', port=8080, debug=False, use_reloader=False)
+        self.app.run(host='0.0.0.0', port=8080, debug=False, use_reloader=False, ssl_context=(self.cert_path, self.key_path))
 
     def on_stop(self):
         pass
+
+    def cert_landing(self):
+        return (
+            '<html><body style="font-family: sans-serif; text-align: center; padding-top: 40px;">'
+            '<h2>Certificate trusted</h2>'
+            '<p>You can close this tab and return to the app.</p>'
+            '</body></html>'
+        )
 
     def ping(self):
         return jsonify({"status": "ok", "mode": "desktop_agent", "secured": True}), 200
