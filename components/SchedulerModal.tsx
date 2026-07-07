@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Clock, Sparkles } from 'lucide-react';
 import { parseSchedulerPrompt } from '../services/gemini';
 import { buildAgentUrl } from '../services/agentUrl';
+import HudPanel from './hud/HudPanel';
 
 interface SchedulerModalProps {
   pcIpAddress: string;
@@ -59,14 +60,14 @@ export default function SchedulerModal({ pcIpAddress, accessToken, onClose, onTo
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/90 backdrop-blur-md animate-in fade-in">
-      <div className="bg-slate-800 w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl border border-white/10">
-        <h2 className="text-xl font-black mb-1 italic flex items-center gap-2">
-          <Clock className="text-cyan-400" /> BOSS MODE
+      <HudPanel className="w-full max-w-sm p-8 shadow-2xl">
+        <h2 className="text-xl font-display font-black mb-1 flex items-center gap-2">
+          <Clock className="text-hud-cyan" /> BOSS MODE
         </h2>
-        <p className="text-xs text-slate-500 font-bold mb-6 uppercase">Zamanlayıcı Asistanı</p>
+        <p className="text-xs text-slate-500 font-display font-bold mb-6 uppercase tracking-[0.2em]">Zamanlayıcı Asistanı</p>
 
         <div className="space-y-4">
-          <div className="bg-cyan-500/10 border border-cyan-500/20 p-4 rounded-2xl">
+          <div className="bg-hud-cyan/5 border border-hud-cyan/20 p-4 rounded-sm">
             <textarea
               value={prompt}
               onChange={e => setPrompt(e.target.value)}
@@ -79,20 +80,20 @@ export default function SchedulerModal({ pcIpAddress, accessToken, onClose, onTo
           <button
             onClick={handleSubmit}
             disabled={isLoading || !prompt.trim()}
-            className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-black py-4 rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            className="w-full bg-gradient-to-r from-hud-cyan to-hud-gold text-slate-950 font-display font-bold py-4 rounded-sm shadow-lg shadow-hud-cyan/20 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
           >
             <Sparkles size={20} className="text-yellow-300" />
             {isLoading ? 'İŞLENİYOR...' : 'EMRİ VER'}
           </button>
 
-          <button 
-            onClick={onClose} 
-            className="w-full py-2 font-bold text-slate-500 hover:text-white transition-colors"
+          <button
+            onClick={onClose}
+            className="hud-chip w-full py-2 font-bold text-slate-500 hover:text-white transition-colors"
           >
             İPTAL
           </button>
         </div>
-      </div>
+      </HudPanel>
     </div>
   );
 }
