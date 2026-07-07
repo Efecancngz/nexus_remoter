@@ -44,7 +44,7 @@ export default function Header({
           </button>
           <button
             onClick={onToggleEdit}
-            className={`px-5 py-2 text-[10px] font-display transition-all ${isEditMode ? 'bg-hud-gold text-slate-950 shadow-lg shadow-hud-gold/30' : 'hud-chip text-slate-400 hover:text-white'}`}
+            className={`px-5 py-2 text-[10px] font-display rounded-sm transition-all ${isEditMode ? 'bg-hud-gold text-slate-950 shadow-lg shadow-hud-gold/30' : 'hud-chip text-slate-400 hover:text-white'}`}
           >
             {isEditMode ? 'BİTTİ' : 'DÜZENLE'}
           </button>
