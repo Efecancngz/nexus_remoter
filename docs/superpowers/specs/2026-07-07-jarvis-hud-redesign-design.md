@@ -33,6 +33,26 @@ a full wrapper-component design system (too heavy for a single-theme app).
 
 ## Design
 
+### 0. Prerequisite fix: Tailwind content globs
+
+`tailwind.config.js`'s `content` array currently lists only `./index.html`,
+root-level files, and `./services/**` — **`./components/**` and `./hooks/**`
+are not scanned.** Verified consequence: classes used only inside
+`components/` (e.g. `rounded-[2.5rem]`) appear zero times in the production
+CSS bundle today — they are silently purged. This is a real pre-existing
+bug, and it would also purge every new `hud.*` class this redesign adds.
+The first implementation task fixes the globs:
+
+```js
+content: [
+  "./index.html",
+  "./*.{js,ts,jsx,tsx}",
+  "./components/**/*.{js,ts,jsx,tsx}",
+  "./hooks/**/*.{js,ts,jsx,tsx}",
+  "./services/**/*.{js,ts,jsx,tsx}",
+]
+```
+
 ### 1. Visual language — single source of truth
 
 **Palette** (defined once as Tailwind tokens under `theme.extend.colors.hud`;
@@ -74,6 +94,9 @@ Tailwind gains `fontFamily.display` (Orbitron) and `fontFamily.data`
   - `.hud-scan` — one-shot scanline sweep (used only by the boot transition)
   - keyframes: `hud-boot` (fade-up + scan, ~600ms), `hud-pulse` (pressed
     glow), `hud-tick` (value-change flash), `hud-breathe` (2s status ring)
+  - `prefers-reduced-motion` is handled by ONE global rule (not per-keyframe
+    media queries):
+    `@media (prefers-reduced-motion: reduce) { *, ::before, ::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }`
 
 ### 2. Motion — event-based only, CSS-only
 
@@ -107,15 +130,37 @@ Tailwind gains `fontFamily.display` (Orbitron) and `fontFamily.data`
 - **ButtonGrid:** cards become bracketed HUD tiles with cyan-glow icons.
   Tiles whose steps include a `SYSTEM_POWER` action get `accent="gold"`.
   Edit mode switches tiles to amber dashed borders (gold = critical/armed).
+  Note: the existing `orange-500` edit-mode indicators (Header's DÜZENLE
+  button, ButtonGrid's delete/edit chips, App.tsx's edit-tab tint) migrate
+  to `hud.gold` — this is a deliberate orange→amber hue change so the app
+  has one "armed/critical" color, not two near-misses.
 - **MediaControls:** volume slider restyled as a thin cyan track with a
   glowing thumb; media buttons become HUD chips.
 - **VoiceButton:** keeps its existing listening pulse but recolored to the
   HUD cyan ring language; idle state is a gold-cored circular HUD button.
+  Its current four `voiceBounce1-4` keyframes are injected via a
+  `dangerouslySetInnerHTML` `<style>` block — they move into `index.css`'s
+  utility layer alongside the new `hud-*` keyframes, and the
+  `dangerouslySetInnerHTML` block is deleted (cleanup that also puts the
+  keyframes under the global reduced-motion rule).
 - **Modals (Edit / Scheduler / CommandPreview):** all switch to HudPanel
   frames with Orbitron headings; CommandPreview's auto-execution countdown
   renders in `font-data` gold.
-- **SettingsPage:** section cards become HudPanels; toggles/inputs pick up
-  cyan accents; headings Orbitron.
+- **SettingsPage:** the app's largest component (~430 lines, multiple
+  independent section cards). Section cards become HudPanels with Orbitron
+  headings. Custom toggle switches: dim `hud.dim` track when off, cyan
+  track + glowing thumb when on. Sliders: same thin-cyan-track treatment as
+  MediaControls. The danger zone (reset/disconnect actions) keeps RED — red
+  stays the destructive color; gold means "critical/armed", not
+  "destructive". Version-info footer goes `font-data`.
+- **App.tsx inline panels:** App.tsx renders panel-like UI directly (AI tab
+  card, Scheduler tab icon container, and the fixed "İŞLENİYOR" executing
+  badge). These migrate to HudPanel / `hud.*` tokens in place — no
+  component extraction (out of scope; restyling only).
+- **Bottom nav bar (App.tsx):** the fixed tab bar becomes a bracketed HUD
+  dock: `hud.panel` fill, cyan glow on the active tab, `font-display`
+  labels. The "İŞLENİYOR" badge becomes a slim gold-bracketed chip with
+  `font-data` text (it signals live execution — gold fits).
 - **ToastContainer:** toasts become slim bracketed panels — cyan (info),
   green (success, unchanged hue), gold (warning), red (error).
 
@@ -138,7 +183,10 @@ Tailwind gains `fontFamily.display` (Orbitron) and `fontFamily.data`
 
 ### 5. Verification
 
-- `npx vitest run` green (49 tests, unmodified) after every task.
+- `npx vitest run` green (49 tests, unmodified) after every task. Verified
+  ahead of time: no test anywhere asserts on CSS class names
+  (zero `.toHaveClass` usages), so tests are style-agnostic by construction
+  — they query by placeholder text, role, and visible text only.
 - `npx tsc --noEmit` clean.
 - `npm run build` succeeds; bundle size delta noted in the final report.
 - Manual visual pass with `npm run dev` across every screen and modal, in
