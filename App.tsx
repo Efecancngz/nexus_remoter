@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AppState, ControlButton, ActionType, AutomationStep } from './types';
 import { executor } from './services/automation';
 import { generateMacro, generateMacroFromAudio } from './services/gemini';
@@ -18,6 +18,7 @@ import ToastContainer from './components/ToastContainer';
 import ConnectScreen from './components/ConnectScreen';
 import VoiceButton from './components/VoiceButton';
 import CommandPreviewModal from './components/CommandPreviewModal';
+import HudPanel from './components/hud/HudPanel';
 
 // Hooks
 import { useConnection } from './hooks/useConnection';
@@ -31,6 +32,14 @@ export default function App() {
   const { toasts, addToast, removeToast } = useToast();
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('remote');
+  const [bootKey, setBootKey] = useState(0);
+  const prevStatus = useRef(connection.connectionStatus);
+  useEffect(() => {
+    if (prevStatus.current !== 'connected' && connection.connectionStatus === 'connected') {
+      setBootKey(k => k + 1);
+    }
+    prevStatus.current = connection.connectionStatus;
+  }, [connection.connectionStatus]);
   const [state, setState] = useState<AppState>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -341,7 +350,7 @@ export default function App() {
 
   if (!isConnected) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-hud-bg flex items-center justify-center p-4">
         <ConnectScreen
           onPair={handlePair}
           initialIp={connection.pcIpAddress}
@@ -352,13 +361,9 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#070b13] text-slate-100 font-sans relative overflow-x-hidden flex justify-center pb-20">
-      {/* Decorative Blur Backgrounds */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/5 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500/5 rounded-full blur-[120px] pointer-events-none" />
-
+    <div className="min-h-screen bg-hud-bg text-slate-100 font-sans relative overflow-x-hidden flex justify-center pb-20">
       {/* Main Container - Centered and optimized for mobile screens */}
-      <div className="w-full max-w-md bg-slate-950/40 backdrop-blur-3xl min-h-screen flex flex-col border-x border-white/5 shadow-2xl relative">
+      <div className="w-full max-w-md bg-transparent min-h-screen flex flex-col shadow-2xl relative">
 
         {/* HEADER */}
         <Header
@@ -373,7 +378,7 @@ export default function App() {
         />
 
         {/* TAB CONTENTS */}
-        <div className="flex-1 pb-10">
+        <div key={bootKey} className="flex-1 pb-10 animate-hud-boot">
           {activeTab === 'remote' && (
             <div className="space-y-2 animate-in fade-in duration-200">
               <MediaControls
@@ -387,7 +392,7 @@ export default function App() {
                   Hızlı Aksiyonlar
                 </span>
                 {state.isEditMode && (
-                  <span className="text-[10px] font-black text-orange-400 bg-orange-400/10 px-2 py-0.5 rounded-md animate-pulse">
+                  <span className="text-[10px] font-black text-hud-gold bg-hud-gold/10 px-2 py-0.5 rounded-md animate-pulse">
                     Düzenleme Modu Aktif
                   </span>
                 )}
@@ -405,18 +410,18 @@ export default function App() {
           {activeTab === 'ai' && (
             <div className="p-6 space-y-6 animate-in slide-in-from-bottom duration-300">
               <div className="flex flex-col items-center text-center gap-2 mb-2">
-                <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+                <div className="w-12 h-12 rounded-sm bg-hud-cyan/10 border border-hud-cyan/20 flex items-center justify-center text-hud-cyan">
                   <Sparkles size={24} className="animate-pulse" />
                 </div>
-                <h2 className="text-lg font-black italic tracking-tighter">YAPAY ZEKA KOMUTLARI</h2>
+                <h2 className="text-lg font-display font-black italic tracking-tighter">YAPAY ZEKA KOMUTLARI</h2>
                 <p className="text-xs text-slate-400 max-w-xs leading-relaxed">
                   Doğal dille komut verin, Gemini sizin için otomatik makrolar ve butonlar üretsin.
                 </p>
               </div>
 
-              <div className="bg-slate-900/60 border border-white/5 rounded-3xl p-5 space-y-4 shadow-xl">
+              <HudPanel className="p-5 space-y-4">
                 <textarea
-                  className="w-full bg-slate-950/80 border border-white/5 rounded-2xl p-4 text-sm outline-none h-32 resize-none placeholder:text-slate-600 focus:border-cyan-500/30 transition-colors"
+                  className="w-full bg-hud-bg/80 border border-hud-dim rounded-sm font-data p-4 text-sm outline-none h-32 resize-none placeholder:text-slate-600 focus:border-hud-cyan/60 focus:ring-1 focus:ring-hud-cyan/20 transition-colors"
                   placeholder="Örn: Bilgisayarın sesini kıs, youtube'u aç ve 5 saniye sonra kapat..."
                   value={aiPrompt}
                   onChange={e => setAiPrompt(e.target.value)}
@@ -453,7 +458,7 @@ export default function App() {
                     }
                   }}
                   disabled={isAiLoading || !aiPrompt.trim()}
-                  className="w-full bg-cyan-500 text-slate-950 font-black py-4 rounded-2xl flex items-center justify-center gap-2 disabled:opacity-40 transition-all shadow-lg shadow-cyan-500/10 active:scale-95"
+                  className="w-full bg-hud-cyan text-slate-950 font-black py-4 rounded-sm flex items-center justify-center gap-2 disabled:opacity-40 transition-all shadow-lg shadow-hud-cyan/10 active:scale-95"
                 >
                   {isAiLoading ? (
                     <>
@@ -467,17 +472,17 @@ export default function App() {
                     </>
                   )}
                 </button>
-              </div>
+              </HudPanel>
             </div>
           )}
 
           {activeTab === 'scheduler' && (
             <div className="p-6 space-y-6 animate-in slide-in-from-bottom duration-300">
               <div className="flex flex-col items-center text-center gap-2 mb-2">
-                <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                <div className="w-12 h-12 rounded-sm bg-hud-cyan/10 border border-hud-cyan/20 flex items-center justify-center text-hud-cyan">
                   <Clock size={24} />
                 </div>
-                <h2 className="text-lg font-black italic tracking-tighter">ZAMANLAYICI</h2>
+                <h2 className="text-lg font-display font-black italic tracking-tighter">ZAMANLAYICI</h2>
                 <p className="text-xs text-slate-400 max-w-xs leading-relaxed">
                   Belirli bir süre sonra yapılmasını istediğiniz komutu yazarak zamanlayın.
                 </p>
@@ -514,23 +519,23 @@ export default function App() {
 
         {/* BOTTOM TAB BAR */}
         <nav className="fixed bottom-0 left-0 right-0 z-50 flex justify-center p-3 pointer-events-none">
-          <div className="w-full max-w-md bg-slate-900/80 backdrop-blur-2xl border border-white/5 rounded-3xl p-2 flex justify-around items-center shadow-[0_10px_30px_rgba(0,0,0,0.8)] pointer-events-auto">
+          <div className="hud-panel p-2 flex justify-around items-center pointer-events-auto w-full max-w-md">
             <button
               onClick={() => setActiveTab('remote')}
-              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-2xl transition-all ${activeTab === 'remote' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-500 hover:text-slate-300'
+              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-sm transition-all ${activeTab === 'remote' ? 'text-hud-cyan bg-hud-cyan/10 hud-glow' : 'text-slate-500 hover:text-slate-300'
                 }`}
             >
               <Gamepad2 size={20} />
-              <span className="text-[9px] font-black uppercase tracking-wider">Kumanda</span>
+              <span className="text-[9px] font-display font-black uppercase tracking-wider">Kumanda</span>
             </button>
 
             <button
               onClick={() => setActiveTab('ai')}
-              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-2xl transition-all ${activeTab === 'ai' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-500 hover:text-slate-300'
+              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-sm transition-all ${activeTab === 'ai' ? 'text-hud-cyan bg-hud-cyan/10 hud-glow' : 'text-slate-500 hover:text-slate-300'
                 }`}
             >
               <Sparkles size={20} />
-              <span className="text-[9px] font-black uppercase tracking-wider">Gemini AI</span>
+              <span className="text-[9px] font-display font-black uppercase tracking-wider">Gemini AI</span>
             </button>
 
             {/* Central Microphone Action Button */}
@@ -542,20 +547,20 @@ export default function App() {
 
             <button
               onClick={() => setActiveTab('scheduler')}
-              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-2xl transition-all ${activeTab === 'scheduler' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-500 hover:text-slate-300'
+              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-sm transition-all ${activeTab === 'scheduler' ? 'text-hud-cyan bg-hud-cyan/10 hud-glow' : 'text-slate-500 hover:text-slate-300'
                 }`}
             >
               <Clock size={20} />
-              <span className="text-[9px] font-black uppercase tracking-wider">Planla</span>
+              <span className="text-[9px] font-display font-black uppercase tracking-wider">Planla</span>
             </button>
 
             <button
               onClick={() => setActiveTab('settings')}
-              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-2xl transition-all ${activeTab === 'settings' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-500 hover:text-slate-300'
+              className={`flex flex-col items-center gap-1.5 py-2 px-4 rounded-sm transition-all ${activeTab === 'settings' ? 'text-hud-cyan bg-hud-cyan/10 hud-glow' : 'text-slate-500 hover:text-slate-300'
                 }`}
             >
               <Settings size={20} />
-              <span className="text-[9px] font-black uppercase tracking-wider">Ayarlar</span>
+              <span className="text-[9px] font-display font-black uppercase tracking-wider">Ayarlar</span>
             </button>
           </div>
         </nav>
@@ -588,9 +593,9 @@ export default function App() {
 
         {/* Global executing state feedback */}
         {state.isExecuting && (
-          <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 bg-cyan-500 text-slate-950 px-4 py-2.5 rounded-full flex items-center gap-2 shadow-2xl shadow-cyan-500/20 animate-pulse">
-            <RefreshCw className="animate-spin text-slate-950" size={14} />
-            <span className="font-black text-[9px] uppercase tracking-wider">İŞLENİYOR: {state.lastExecutedAction}</span>
+          <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 hud-panel hud-panel-gold text-hud-gold px-4 py-2.5 flex items-center gap-2 animate-pulse">
+            <RefreshCw className="animate-spin text-hud-gold" size={14} />
+            <span className="font-data text-[9px] uppercase tracking-wider">İŞLENİYOR: {state.lastExecutedAction}</span>
           </div>
         )}
 

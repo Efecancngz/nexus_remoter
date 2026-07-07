@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { 
-  X, Wifi, WifiOff, Shield, Palette, Bot, Database, Info, 
+import {
+  X, Wifi, WifiOff, Shield, Palette, Bot, Database, Info,
   ChevronRight, RefreshCw, Download, Upload, Trash2, ExternalLink,
   Github, Globe, Monitor
 } from 'lucide-react';
+import HudPanel from './hud/HudPanel';
 
 interface SettingsPageProps {
   pcIpAddress: string;
@@ -93,28 +94,28 @@ export default function SettingsPage({
   };
 
   return (
-    <div className="fixed inset-0 z-[60] bg-slate-950 flex flex-col animate-in slide-in-from-right duration-300">
+    <div className="fixed inset-0 z-[60] bg-hud-bg flex flex-col animate-in slide-in-from-right duration-300">
       {/* Header */}
-      <div className="flex items-center justify-between p-5 border-b border-white/5 bg-slate-900/60 backdrop-blur-xl">
+      <div className="flex items-center justify-between p-5 border-b border-hud-cyan/20 bg-hud-panel/60 backdrop-blur-xl">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-black italic tracking-tighter text-white">AYARLAR</h1>
+          <h1 className="text-xl font-display font-bold uppercase tracking-[0.15em] text-white">AYARLAR</h1>
         </div>
-        <button onClick={onClose} className="p-3 bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors">
+        <button onClick={onClose} className="p-3 hud-chip rounded-sm text-hud-cyan/70 hover:text-hud-cyan transition-colors">
           <X size={20} />
         </button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         {/* Tab Navigation */}
-        <div className="px-4 py-3 flex gap-2 overflow-x-auto border-b border-white/5 scrollbar-hide">
+        <div className="px-4 py-3 flex gap-2 overflow-x-auto border-b border-hud-cyan/20 scrollbar-hide">
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold shrink-0 transition-all ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-sm text-xs font-bold font-data shrink-0 transition-all ${
                 activeTab === tab.id
-                  ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/30'
-                  : 'bg-slate-800/50 text-slate-500 border border-transparent hover:text-slate-300'
+                  ? 'bg-hud-cyan/10 text-hud-cyan border border-hud-cyan/30'
+                  : 'bg-hud-panel/40 text-slate-500 border border-transparent hover:text-slate-300'
               }`}
             >
               {tab.icon}
@@ -129,20 +130,20 @@ export default function SettingsPage({
           {activeTab === 'connection' && (
             <div className="space-y-6">
               <div className="flex items-center gap-3 mb-2">
-                {connectionStatus === 'connected' 
+                {connectionStatus === 'connected'
                   ? <Wifi className="text-green-400" size={20} />
                   : <WifiOff className="text-red-400" size={20} />
                 }
-                <span className={`text-sm font-bold ${connectionStatus === 'connected' ? 'text-green-400' : 'text-red-400'}`}>
+                <span className={`text-sm font-bold font-data ${connectionStatus === 'connected' ? 'text-green-400' : 'text-red-400'}`}>
                   {connectionStatus === 'connected' ? 'Bağlı' : 'Bağlantı Yok'}
                 </span>
               </div>
 
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase">Bilgisayar Yerel IP</label>
+                <label className="text-[10px] font-display font-bold uppercase tracking-[0.15em] text-slate-400">Bilgisayar Yerel IP</label>
                 <input
                   type="text"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-2xl p-4 text-white font-mono focus:ring-2 focus:ring-cyan-500 outline-none transition-all"
+                  className="w-full bg-hud-bg/80 border border-hud-dim rounded-sm p-4 text-white font-data focus:border-hud-cyan/60 focus:ring-1 focus:ring-hud-cyan/20 outline-none transition-all"
                   value={localIp}
                   onChange={e => setLocalIp(e.target.value.trim())}
                   placeholder="Örn: 192.168.1.10"
@@ -152,24 +153,24 @@ export default function SettingsPage({
                 </p>
               </div>
 
-              <div className="bg-slate-800/30 rounded-2xl p-4 border border-white/5">
+              <HudPanel className="p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs text-slate-400 font-bold">Port</span>
-                  <span className="text-xs font-mono text-slate-300">8080</span>
+                  <span className="text-xs font-data text-slate-300">8080</span>
                 </div>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs text-slate-400 font-bold">Protokol</span>
-                  <span className="text-xs font-mono text-slate-300">HTTP</span>
+                  <span className="text-xs font-data text-slate-300">HTTP</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-slate-400 font-bold">Polling</span>
-                  <span className="text-xs font-mono text-slate-300">1.5 saniye</span>
+                  <span className="text-xs font-data text-slate-300">1.5 saniye</span>
                 </div>
-              </div>
+              </HudPanel>
 
               <button
                 onClick={handleSaveConnection}
-                className="w-full bg-cyan-500 text-slate-950 font-black py-4 rounded-2xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all"
+                className="w-full bg-hud-cyan text-slate-950 font-display font-bold py-4 rounded-sm shadow-lg shadow-hud-cyan/20 active:scale-95 transition-all"
               >
                 KAYDET
               </button>
@@ -179,11 +180,11 @@ export default function SettingsPage({
           {/* SECURITY */}
           {activeTab === 'security' && (
             <div className="space-y-6">
-              <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4">
+              <div className="bg-hud-cyan/5 border border-hud-cyan/20 rounded-sm p-4">
                 <div className="flex items-start gap-3">
-                  <Shield className="text-amber-400 shrink-0 mt-0.5" size={18} />
+                  <Shield className="text-hud-cyan shrink-0 mt-0.5" size={18} />
                   <div>
-                    <p className="text-xs font-bold text-amber-400 mb-1">Oturum Güvenliği</p>
+                    <p className="text-xs font-display font-bold uppercase tracking-[0.1em] text-hud-cyan mb-1">Oturum Güvenliği</p>
                     <p className="text-[10px] text-slate-400 leading-relaxed">
                       Eşleştirme sırasında Nexus Agent penceresindeki 4 haneli PIN girilir ve
                       cihazına özel bir oturum anahtarı verilir. PIN her başlatmada yenilenir;
@@ -199,7 +200,7 @@ export default function SettingsPage({
                   onDisconnect();
                   onToast('Oturum sonlandırıldı. Yeniden eşleştirme gerekiyor.', 'info');
                 }}
-                className="w-full bg-red-500/10 border border-red-500/30 text-red-400 font-black py-4 rounded-2xl active:scale-95 transition-all"
+                className="w-full bg-red-500/10 border border-red-500/30 text-red-400 font-black py-4 rounded-sm active:scale-95 transition-all"
               >
                 OTURUMU SONLANDIR & YENİDEN EŞLEŞTİR
               </button>
@@ -209,52 +210,52 @@ export default function SettingsPage({
           {/* APPEARANCE */}
           {activeTab === 'appearance' && (
             <div className="space-y-6">
-              <div className="bg-slate-800/30 rounded-2xl p-5 border border-white/5 space-y-4">
-                <h3 className="text-xs font-black text-slate-400 uppercase">Tema</h3>
+              <HudPanel className="p-5 space-y-4">
+                <h3 className="text-xs font-display font-bold uppercase tracking-[0.15em] text-slate-400">Tema</h3>
                 <div className="flex gap-3">
-                  <button className="flex-1 bg-slate-900 border-2 border-cyan-500 rounded-2xl p-4 text-center">
+                  <button className="flex-1 bg-hud-bg border-2 border-hud-cyan rounded-sm p-4 text-center">
                     <div className="w-8 h-8 rounded-full bg-slate-950 mx-auto mb-2 border border-white/10"></div>
-                    <span className="text-[10px] font-bold text-cyan-400 uppercase">Koyu</span>
+                    <span className="text-[10px] font-bold text-hud-cyan uppercase">Koyu</span>
                   </button>
-                  <button className="flex-1 bg-slate-800 border border-slate-700 rounded-2xl p-4 text-center opacity-40 cursor-not-allowed">
+                  <button className="flex-1 bg-hud-panel border border-hud-dim rounded-sm p-4 text-center opacity-40 cursor-not-allowed">
                     <div className="w-8 h-8 rounded-full bg-white mx-auto mb-2 border border-slate-300"></div>
                     <span className="text-[10px] font-bold text-slate-500 uppercase">Açık (Yakında)</span>
                   </button>
                 </div>
-              </div>
+              </HudPanel>
 
-              <div className="bg-slate-800/30 rounded-2xl p-5 border border-white/5 space-y-4">
-                <h3 className="text-xs font-black text-slate-400 uppercase">Grid Düzeni</h3>
+              <HudPanel className="p-5 space-y-4">
+                <h3 className="text-xs font-display font-bold uppercase tracking-[0.15em] text-slate-400">Grid Düzeni</h3>
                 <p className="text-[10px] text-slate-500">
                   Buton grid düzeni ekran boyutuna göre otomatik ayarlanır (2-6 sütun arası).
                 </p>
-              </div>
+              </HudPanel>
             </div>
           )}
 
           {/* AI */}
           {activeTab === 'ai' && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <div className="bg-slate-800/30 rounded-2xl p-5 border border-white/5 space-y-3">
-                <h3 className="text-xs font-black text-slate-400 uppercase">Yapay Zeka Motoru</h3>
+              <HudPanel className="p-5 space-y-3">
+                <h3 className="text-xs font-display font-bold uppercase tracking-[0.15em] text-slate-400">Yapay Zeka Motoru</h3>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-slate-300 font-bold">Model</span>
-                  <span className="text-xs font-mono text-cyan-400 bg-cyan-500/10 px-3 py-1 rounded-lg">Gemini 2.5 Flash</span>
+                  <span className="text-xs font-data text-hud-cyan bg-hud-cyan/10 px-3 py-1 rounded-sm">Gemini 2.5 Flash</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-slate-300 font-bold">Sıcaklık</span>
-                  <span className="text-xs font-mono text-slate-400">0.1 (Deterministik)</span>
+                  <span className="text-xs font-data text-slate-400">0.1 (Deterministik)</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-slate-300 font-bold">Retry</span>
-                  <span className="text-xs font-mono text-slate-400">3 deneme (exponential backoff)</span>
+                  <span className="text-xs font-data text-slate-400">3 deneme (exponential backoff)</span>
                 </div>
-              </div>
+              </HudPanel>
 
               {/* Voice Control Settings */}
-              <div className="bg-slate-800/30 rounded-2xl p-5 border border-white/5 space-y-4">
-                <h3 className="text-xs font-black text-slate-400 uppercase">Sesli Kontrol Ayarları</h3>
-                
+              <HudPanel className="p-5 space-y-4">
+                <h3 className="text-xs font-display font-bold uppercase tracking-[0.15em] text-slate-400">Sesli Kontrol Ayarları</h3>
+
                 {/* Voice Feedback Toggle */}
                 <div className="flex items-center justify-between">
                   <div>
@@ -262,13 +263,13 @@ export default function SettingsPage({
                     <span className="text-[10px] text-slate-500">Komut sonuçları sesli olarak okunur.</span>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer select-none">
-                    <input 
-                      type="checkbox" 
-                      className="sr-only peer" 
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
                       checked={voiceFeedback}
                       onChange={e => onUpdateVoiceFeedback(e.target.checked)}
                     />
-                    <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500 peer-checked:after:bg-slate-950"></div>
+                    <div className="w-11 h-6 bg-hud-dim peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-hud-cyan peer-checked:after:bg-slate-950 peer-checked:after:shadow-[0_0_8px_rgb(34_211_238_/_0.8)]"></div>
                   </label>
                 </div>
 
@@ -279,13 +280,13 @@ export default function SettingsPage({
                     <span className="text-[10px] text-slate-500">Mikrofon ve onay anlarında titreşim verir.</span>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer select-none">
-                    <input 
-                      type="checkbox" 
-                      className="sr-only peer" 
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
                       checked={hapticFeedback}
                       onChange={e => onUpdateHapticFeedback(e.target.checked)}
                     />
-                    <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500 peer-checked:after:bg-slate-950"></div>
+                    <div className="w-11 h-6 bg-hud-dim peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-hud-cyan peer-checked:after:bg-slate-950 peer-checked:after:shadow-[0_0_8px_rgb(34_211_238_/_0.8)]"></div>
                   </label>
                 </div>
 
@@ -296,7 +297,7 @@ export default function SettingsPage({
                     <span className="text-[10px] text-slate-500">Ses analiz edildikten sonra otomatik çalıştırılma süresi.</span>
                   </div>
                   <select
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs font-bold text-slate-300 outline-none focus:ring-1 focus:ring-cyan-500"
+                    className="w-full bg-hud-bg/80 border border-hud-dim rounded-sm p-3 text-xs font-bold font-data text-slate-300 outline-none focus:border-hud-cyan/60 focus:ring-1 focus:ring-hud-cyan/20"
                     value={countdownDuration}
                     onChange={e => onUpdateCountdownDuration(Number(e.target.value))}
                   >
@@ -306,13 +307,13 @@ export default function SettingsPage({
                     <option value={10}>10 Saniye</option>
                   </select>
                 </div>
-              </div>
+              </HudPanel>
 
-              <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-2xl p-4">
+              <div className="bg-hud-cyan/5 border border-hud-cyan/20 rounded-sm p-4">
                 <div className="flex items-start gap-3">
-                  <Bot className="text-cyan-400 shrink-0 mt-0.5" size={18} />
+                  <Bot className="text-hud-cyan shrink-0 mt-0.5" size={18} />
                   <div>
-                    <p className="text-xs font-bold text-cyan-400 mb-1">Desteklenen Komutlar</p>
+                    <p className="text-xs font-display font-bold uppercase tracking-[0.1em] text-hud-cyan mb-1">Desteklenen Komutlar</p>
                     <ul className="text-[10px] text-slate-400 space-y-1 list-disc ml-3">
                       <li>Uygulama açma (Spotify, Chrome, vb.)</li>
                       <li>URL açma</li>
@@ -334,10 +335,10 @@ export default function SettingsPage({
             <div className="space-y-4">
               <button
                 onClick={handleExport}
-                className="w-full bg-slate-800 border border-white/5 rounded-2xl p-5 flex items-center justify-between hover:bg-slate-700/50 transition-colors group"
+                className="w-full hud-chip rounded-sm p-5 flex items-center justify-between hover:bg-hud-cyan/5 transition-colors group"
               >
                 <div className="flex items-center gap-4">
-                  <Download className="text-cyan-400" size={20} />
+                  <Download className="text-hud-cyan" size={20} />
                   <div className="text-left">
                     <span className="text-sm font-bold block text-slate-200">Dışa Aktar</span>
                     <span className="text-[10px] text-slate-500">Buton ve ayarlarını JSON olarak kaydet</span>
@@ -348,7 +349,7 @@ export default function SettingsPage({
 
               <button
                 onClick={handleImport}
-                className="w-full bg-slate-800 border border-white/5 rounded-2xl p-5 flex items-center justify-between hover:bg-slate-700/50 transition-colors group"
+                className="w-full hud-chip rounded-sm p-5 flex items-center justify-between hover:bg-hud-cyan/5 transition-colors group"
               >
                 <div className="flex items-center gap-4">
                   <Upload className="text-green-400" size={20} />
@@ -360,10 +361,10 @@ export default function SettingsPage({
                 <ChevronRight size={16} className="text-slate-600 group-hover:text-slate-400" />
               </button>
 
-              <div className="pt-6 border-t border-white/5">
+              <div className="pt-6 border-t border-hud-cyan/20">
                 <button
                   onClick={handleReset}
-                  className="w-full bg-red-500/5 border border-red-500/20 rounded-2xl p-5 flex items-center justify-between hover:bg-red-500/10 transition-colors group"
+                  className="w-full bg-red-500/5 border border-red-500/20 rounded-sm p-5 flex items-center justify-between hover:bg-red-500/10 transition-colors group"
                 >
                   <div className="flex items-center gap-4">
                     <Trash2 className="text-red-500" size={20} />
@@ -382,26 +383,26 @@ export default function SettingsPage({
           {activeTab === 'about' && (
             <div className="space-y-6">
               <div className="text-center py-6">
-                <h2 className="text-3xl font-black italic tracking-tighter text-white mb-1">NEXUS</h2>
+                <h2 className="text-3xl font-display font-bold uppercase tracking-[0.15em] text-white mb-1 hud-glow">NEXUS</h2>
                 <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Remote Control</p>
-                <div className="mt-3 inline-block bg-cyan-500/10 text-cyan-400 text-xs font-mono font-bold px-4 py-1.5 rounded-full border border-cyan-500/20">
+                <div className="mt-3 inline-block bg-hud-cyan/10 text-hud-cyan text-xs font-data font-bold px-4 py-1.5 rounded-sm border border-hud-cyan/20">
                   v1.0.0
                 </div>
               </div>
 
-              <div className="bg-slate-800/30 rounded-2xl p-5 border border-white/5 space-y-3">
+              <HudPanel className="p-5 space-y-3">
                 <p className="text-xs text-slate-400 leading-relaxed">
                   Nexus Remote, telefonunuzu yapay zeka destekli bir PC komuta merkezine dönüştürür.
                   Tamamen açık kaynak.
                 </p>
-              </div>
+              </HudPanel>
 
               <div className="space-y-2">
                 <a
                   href="https://github.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full bg-slate-800 border border-white/5 rounded-2xl p-4 flex items-center gap-4 hover:bg-slate-700/50 transition-colors"
+                  className="w-full hud-chip rounded-sm p-4 flex items-center gap-4 hover:bg-hud-cyan/5 transition-colors"
                 >
                   <Github className="text-slate-400" size={20} />
                   <span className="text-sm font-bold text-slate-300">GitHub</span>
@@ -409,16 +410,16 @@ export default function SettingsPage({
                 </a>
               </div>
 
-              <div className="bg-slate-800/30 rounded-2xl p-5 border border-white/5">
-                <h3 className="text-xs font-black text-slate-400 uppercase mb-3">Teknolojiler</h3>
+              <HudPanel className="p-5">
+                <h3 className="text-xs font-display font-bold uppercase tracking-[0.15em] text-slate-400 mb-3">Teknolojiler</h3>
                 <div className="flex flex-wrap gap-2">
                   {['React', 'TypeScript', 'Vite', 'Tailwind', 'Python', 'Flask', 'Gemini AI'].map(tech => (
-                    <span key={tech} className="text-[10px] font-bold bg-slate-700/50 text-slate-400 px-3 py-1.5 rounded-lg border border-white/5">
+                    <span key={tech} className="text-[10px] font-bold font-data bg-hud-dim/40 text-slate-400 px-3 py-1.5 rounded-sm border border-hud-dim">
                       {tech}
                     </span>
                   ))}
                 </div>
-              </div>
+              </HudPanel>
             </div>
           )}
         </div>

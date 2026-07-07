@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, X, Clock, Terminal, Globe, PlayCircle, Settings2, Monitor } from 'lucide-react';
 import { AutomationStep, ActionType } from '../types';
+import HudPanel from './hud/HudPanel';
 
 interface CommandPreviewModalProps {
   steps: AutomationStep[];
@@ -55,7 +56,7 @@ export default function CommandPreviewModal({
       case ActionType.LAUNCH_APP:
         return <Terminal className="text-emerald-400" size={16} />;
       case ActionType.OPEN_URL:
-        return <Globe className="text-cyan-400" size={16} />;
+        return <Globe className="text-hud-cyan" size={16} />;
       case ActionType.KEYPRESS:
         return <PlayCircle className="text-purple-400" size={16} />;
       case ActionType.SYSTEM_POWER:
@@ -71,7 +72,7 @@ export default function CommandPreviewModal({
       case ActionType.LAUNCH_APP:
         return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
       case ActionType.OPEN_URL:
-        return 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
+        return 'bg-hud-cyan/10 text-hud-cyan border-hud-cyan/20';
       case ActionType.KEYPRESS:
         return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
       case ActionType.SYSTEM_POWER:
@@ -86,15 +87,15 @@ export default function CommandPreviewModal({
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
       {/* Modal Card with premium neon borders and glassmorphism */}
-      <div className="w-full max-w-sm bg-slate-900/90 border border-white/10 rounded-[2.5rem] p-6 shadow-[0_20px_50px_rgba(6,182,212,0.15)] flex flex-col gap-6 relative overflow-hidden animate-in zoom-in-95 duration-200">
+      <HudPanel className="w-full max-w-sm p-6 shadow-[0_20px_50px_rgba(6,182,212,0.15)] flex flex-col gap-6 overflow-hidden animate-in zoom-in-95 duration-200">
         
         {/* Countdown Glow Background */}
-        <div className="absolute -top-20 -left-20 w-48 h-48 bg-cyan-500/10 rounded-full blur-[50px] pointer-events-none" />
-        <div className="absolute -bottom-20 -right-20 w-48 h-48 bg-indigo-500/10 rounded-full blur-[50px] pointer-events-none" />
+        <div className="absolute -top-20 -left-20 w-48 h-48 bg-hud-cyan/10 rounded-full blur-[50px] pointer-events-none" />
+        <div className="absolute -bottom-20 -right-20 w-48 h-48 bg-hud-gold/10 rounded-full blur-[50px] pointer-events-none" />
 
         {/* Header Section */}
         <div className="flex flex-col items-center text-center gap-2">
-          <div className="w-14 h-14 rounded-full bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 relative">
+          <div className="w-14 h-14 rounded-full bg-hud-cyan/10 border border-hud-cyan/30 flex items-center justify-center text-hud-cyan relative">
             {isAutoRunDisabled ? (
               <Clock size={22} className="animate-pulse" />
             ) : (
@@ -108,7 +109,7 @@ export default function CommandPreviewModal({
                     stroke="currentColor"
                     strokeWidth="2"
                     fill="transparent"
-                    className="text-cyan-500/10"
+                    className="text-hud-cyan/10"
                   />
                   <circle
                     cx="28"
@@ -119,14 +120,14 @@ export default function CommandPreviewModal({
                     fill="transparent"
                     strokeDasharray="163"
                     strokeDashoffset={163 - (163 * progressPercent) / 100}
-                    className="text-cyan-400 transition-all duration-1000 ease-linear"
+                    className="text-hud-cyan transition-all duration-1000 ease-linear"
                   />
                 </svg>
-                <span className="font-mono text-lg font-black">{timeLeft}</span>
+                <span className="font-data text-lg font-black text-hud-gold">{timeLeft}</span>
               </>
             )}
           </div>
-          <h3 className="text-base font-black italic tracking-tight text-white mt-1">YAPAY ZEKA KOMUT PLANI</h3>
+          <h3 className="text-base font-display font-bold uppercase tracking-[0.15em] text-white mt-1">YAPAY ZEKA KOMUT PLANI</h3>
           <p className="text-[11px] text-slate-400 leading-relaxed max-w-[240px]">
             {isAutoRunDisabled 
               ? "Sesli komutunuz analiz edildi. Çalıştırmak için lütfen onaylayın."
@@ -138,23 +139,23 @@ export default function CommandPreviewModal({
         {/* Steps List container */}
         <div className="flex-1 max-h-48 overflow-y-auto space-y-3 pr-1 py-1 custom-scrollbar">
           {steps.map((step, idx) => (
-            <div 
+            <div
               key={step.id || idx}
-              className="bg-slate-800/40 border border-white/5 rounded-2xl p-3 flex items-start gap-3 transition-all hover:bg-slate-800/60"
+              className="bg-slate-800/40 border border-hud-dim rounded-sm p-3 flex items-start gap-3 transition-all hover:bg-slate-800/60"
             >
-              <div className="p-2 bg-slate-800 rounded-xl mt-0.5 flex shrink-0">
+              <div className="p-2 bg-slate-800 rounded-sm mt-0.5 flex shrink-0">
                 {getStepIcon(step.type)}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-1">
-                  <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-md border ${getTypeBadgeStyle(step.type)}`}>
+                  <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-sm border ${getTypeBadgeStyle(step.type)}`}>
                     {step.type}
                   </span>
-                  <span className="text-[9px] font-mono text-slate-500">Adım {idx + 1}</span>
+                  <span className="text-[9px] font-data text-slate-500">Adım {idx + 1}</span>
                 </div>
                 <h4 className="text-[11px] font-bold text-slate-200 truncate">{step.description}</h4>
                 {step.value && (
-                  <p className="text-[9px] font-mono text-slate-400 truncate mt-0.5 opacity-80 bg-slate-950/30 px-1.5 py-0.5 rounded border border-white/5 max-w-max animate-pulse">
+                  <p className="text-[9px] font-data text-slate-400 truncate mt-0.5 opacity-80 bg-slate-950/30 px-1.5 py-0.5 rounded-sm border border-hud-dim max-w-max animate-pulse">
                     {step.value}
                   </p>
                 )}
@@ -167,22 +168,22 @@ export default function CommandPreviewModal({
         <div className="flex gap-3 mt-2">
           <button
             onClick={handleCancel}
-            className="flex-1 py-3 px-4 bg-slate-800/60 hover:bg-slate-800 text-slate-300 font-bold rounded-2xl active:scale-95 transition-all text-xs border border-white/5 flex items-center justify-center gap-1.5"
+            className="hud-chip flex-1 py-3 px-4 text-slate-300 font-bold active:scale-95 transition-all text-xs flex items-center justify-center gap-1.5"
           >
             <X size={14} />
             İptal Et
           </button>
-          
+
           <button
             onClick={handleConfirm}
-            className="flex-1 py-3 px-4 bg-gradient-to-tr from-cyan-500 to-indigo-500 text-slate-950 font-black rounded-2xl active:scale-95 transition-all text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-cyan-500/10 hover:brightness-110"
+            className="flex-1 py-3 px-4 bg-gradient-to-r from-hud-cyan to-hud-gold text-slate-950 font-display font-bold rounded-sm active:scale-95 transition-all text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-hud-cyan/10 hover:brightness-110"
           >
             <Play size={14} fill="currentColor" />
             Hemen Çalıştır
           </button>
         </div>
 
-      </div>
+      </HudPanel>
     </div>
   );
 }
