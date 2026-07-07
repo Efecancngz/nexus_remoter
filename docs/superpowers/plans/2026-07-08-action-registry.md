@@ -18,7 +18,7 @@
 - Existing security tests keep their intent: COMMAND allowlist, `_PROTECTED_PROCESSES`, SYSTEM_POWER argv, token auth.
 - All user-visible Turkish strings stay byte-identical unless a task explicitly adds new ones.
 - After every task: backend `../venv/Scripts/python.exe -m pytest tests/ -q` green (run from `nexus_desktop/`). Frontend tasks additionally: `npx tsc --noEmit` and `npx vitest run` green (run from repo root).
-- Baseline at branch start: 150 backend tests, 49 frontend tests (verify with a full run before Task 1).
+- Baseline at branch start: 144 backend tests, 49 frontend tests (verified by full run before Task 1).
 - Commit after every task; commit messages have NO Co-Authored-By trailer.
 
 ---
