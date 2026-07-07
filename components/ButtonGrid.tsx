@@ -9,6 +9,9 @@ interface ButtonGridProps {
   onAddButton: () => void;
 }
 
+const hasPowerAction = (btn: ControlButton) =>
+  btn.steps.some(step => step.type === 'SYSTEM_POWER');
+
 export function getIcon(name: string) {
   const p = { size: 24, className: "text-white" };
   switch (name) {
@@ -28,18 +31,24 @@ export default function ButtonGrid({ buttons, isEditMode, onButtonClick, onAddBu
         <button
           key={btn.id}
           onClick={() => onButtonClick(btn)}
-          className={`${btn.color} relative aspect-square rounded-[2rem] flex flex-col items-center justify-center gap-3 shadow-xl active:scale-[0.97] transition-all border border-white/10 group overflow-hidden`}
+          className={`${btn.color} relative aspect-square rounded-sm flex flex-col items-center justify-center gap-3 shadow-xl active:scale-[0.97] transition-all group overflow-hidden border ${
+            hasPowerAction(btn)
+              ? 'border-hud-gold/60 shadow-hud-gold/10'
+              : 'border-hud-cyan/30'
+          }`}
         >
           {/* Subtle button radial reflection */}
           <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-          
-          <div className="p-4 bg-black/20 rounded-2xl group-hover:scale-110 transition-transform">
+
+          <div className={`p-4 bg-black/30 rounded-sm group-hover:scale-110 transition-transform ${
+            hasPowerAction(btn) ? 'hud-glow-box' : ''
+          }`}>
             {getIcon(btn.icon)}
           </div>
-          <span className="font-bold text-xs uppercase tracking-wider opacity-90">{btn.label}</span>
+          <span className="font-display font-bold text-[10px] uppercase tracking-[0.15em] opacity-90">{btn.label}</span>
           
           {isEditMode && (
-            <div className="absolute top-3 right-3 bg-orange-500 text-slate-950 p-1.5 rounded-full shadow-lg border border-white/20 animate-pulse">
+            <div className="absolute top-3 right-3 bg-hud-gold text-slate-950 p-1.5 rounded-full shadow-lg border border-white/20 animate-pulse">
               <Edit3 size={12} strokeWidth={2.5} />
             </div>
           )}
@@ -49,7 +58,7 @@ export default function ButtonGrid({ buttons, isEditMode, onButtonClick, onAddBu
       {isEditMode && (
         <button
           onClick={onAddButton}
-          className="aspect-square rounded-[2rem] border-2 border-dashed border-slate-700/60 bg-slate-900/20 flex flex-col items-center justify-center gap-2 text-slate-500 active:scale-95 transition-all hover:border-slate-500 hover:text-slate-300"
+          className="aspect-square rounded-sm border-2 border-dashed border-hud-gold/40 text-hud-gold/60 hover:border-hud-gold hover:text-hud-gold bg-slate-900/20 flex flex-col items-center justify-center gap-2 active:scale-95 transition-all"
         >
           <Plus size={32} />
           <span className="text-[10px] font-black uppercase tracking-widest">Ekle</span>
