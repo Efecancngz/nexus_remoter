@@ -1,6 +1,7 @@
 
 export enum ActionType {
   LAUNCH_APP = 'LAUNCH_APP',
+  CLOSE_APP = 'CLOSE_APP',
   OPEN_URL = 'OPEN_URL',
   COMMAND = 'COMMAND',
   MACRO = 'MACRO',

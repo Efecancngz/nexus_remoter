@@ -55,6 +55,8 @@ export default function CommandPreviewModal({
     switch (type) {
       case ActionType.LAUNCH_APP:
         return <Terminal className="text-emerald-400" size={16} />;
+      case ActionType.CLOSE_APP:
+        return <Terminal className="text-hud-gold" size={16} />;
       case ActionType.OPEN_URL:
         return <Globe className="text-hud-cyan" size={16} />;
       case ActionType.KEYPRESS:
@@ -71,6 +73,8 @@ export default function CommandPreviewModal({
     switch (type) {
       case ActionType.LAUNCH_APP:
         return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+      case ActionType.CLOSE_APP:
+        return 'bg-hud-gold/10 text-hud-gold border-hud-gold/20';
       case ActionType.OPEN_URL:
         return 'bg-hud-cyan/10 text-hud-cyan border-hud-cyan/20';
       case ActionType.KEYPRESS:

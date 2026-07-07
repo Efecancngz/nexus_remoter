@@ -1,13 +1,18 @@
 import os
 import re
 
+def _normalize(text):
+    """Lowercase and strip everything but letters/digits, so e.g.
+    'counter strike 2' matches 'Counter-Strike 2'."""
+    return re.sub(r'[^a-z0-9]', '', text.lower())
+
 def find_installed_app(search_term):
     """
     Scans Windows Start Menu for .lnk files matching the search term,
     falling back to installed Steam apps (returned as a steam:// URI).
     Returns a launchable target (path or URI) or None.
     """
-    search_term = search_term.lower().replace(" ", "")
+    search_term = _normalize(search_term)
     
     # Windows Start Menu locations
     paths = [
@@ -23,7 +28,7 @@ def find_installed_app(search_term):
         for root, dirs, files in os.walk(path):
             for file in files:
                 if file.endswith(".lnk"):
-                    file_name = file.lower().replace(" ", "").replace(".lnk", "")
+                    file_name = _normalize(file[:-len(".lnk")])
                     
                     if search_term == file_name:
                         return os.path.join(root, file)
@@ -69,7 +74,7 @@ def _steam_library_dirs():
 def find_steam_app(search_term):
     """
     Looks up an installed Steam app by name across all Steam libraries.
-    `search_term` must already be lowercased with spaces stripped.
+    `search_term` must already be normalized (lowercase alphanumerics only).
     Returns a steam://rungameid/<appid> URI or None.
     """
     candidates = []
@@ -90,7 +95,7 @@ def find_steam_app(search_term):
             name = re.search(r'"name"\s+"([^"]+)"', content)
             if not (appid and name):
                 continue
-            normalized = name.group(1).lower().replace(" ", "")
+            normalized = _normalize(name.group(1))
             if search_term == normalized:
                 return f"steam://rungameid/{appid.group(1)}"
             if search_term in normalized:
