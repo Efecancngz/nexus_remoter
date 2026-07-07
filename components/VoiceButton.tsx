@@ -130,61 +130,36 @@ export default function VoiceButton({ onAudioReady, onToast, hapticEnabled = tru
   };
 
   return (
-    <>
-      <style dangerouslySetInnerHTML={{__html: `
-        @keyframes voiceBounce1 {
-          0%, 100% { transform: scaleY(0.4); }
-          50% { transform: scaleY(1.2); }
-        }
-        @keyframes voiceBounce2 {
-          0%, 100% { transform: scaleY(0.3); }
-          50% { transform: scaleY(1.6); }
-        }
-        @keyframes voiceBounce3 {
-          0%, 100% { transform: scaleY(0.6); }
-          50% { transform: scaleY(1.1); }
-        }
-        @keyframes voiceBounce4 {
-          0%, 100% { transform: scaleY(0.4); }
-          50% { transform: scaleY(1.4); }
-        }
-        .animate-voice-bar-1 { animation: voiceBounce1 0.6s ease-in-out infinite; }
-        .animate-voice-bar-2 { animation: voiceBounce2 0.75s ease-in-out infinite; }
-        .animate-voice-bar-3 { animation: voiceBounce3 0.5s ease-in-out infinite; }
-        .animate-voice-bar-4 { animation: voiceBounce4 0.85s ease-in-out infinite; }
-      `}} />
+    <button
+      onClick={handleClick}
+      disabled={state === 'processing'}
+      className={`w-12 h-12 rounded-sm flex items-center justify-center transition-all active:scale-95 relative shrink-0 ${
+        state === 'recording'
+          ? 'bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)]'
+          : state === 'processing'
+          ? 'bg-hud-cyan text-slate-950 shadow-[0_0_15px_rgb(34_211_238_/_0.5)] animate-pulse'
+          : 'bg-hud-panel border border-hud-gold/60 text-hud-gold shadow-[0_0_10px_rgb(245_158_11_/_0.25)] hover:brightness-125'
+      }`}
+    >
+      {state === 'recording' && (
+        <>
+          <span className="absolute inset-0 rounded-full bg-red-600/40 animate-ping pointer-events-none" />
+          <span className="absolute -inset-1.5 rounded-full border border-red-500/30 animate-pulse pointer-events-none" />
+        </>
+      )}
 
-      <button
-        onClick={handleClick}
-        disabled={state === 'processing'}
-        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-95 relative shrink-0 ${
-          state === 'recording'
-            ? 'bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)]'
-            : state === 'processing'
-            ? 'bg-cyan-500 text-slate-950 shadow-[0_0_15px_rgba(6,182,212,0.5)] animate-pulse'
-            : 'bg-gradient-to-tr from-cyan-500 to-indigo-500 text-slate-950 shadow-[0_4px_10px_rgba(6,182,212,0.3)] hover:brightness-110'
-        }`}
-      >
-        {state === 'recording' && (
-          <>
-            <span className="absolute inset-0 rounded-full bg-red-600/40 animate-ping pointer-events-none" />
-            <span className="absolute -inset-1.5 rounded-full border border-red-500/30 animate-pulse pointer-events-none" />
-          </>
-        )}
-
-        {state === 'processing' ? (
-          <Loader2 className="animate-spin" size={18} />
-        ) : state === 'recording' ? (
-          <div className="flex items-center gap-0.5 justify-center h-4 w-6">
-            <span className="w-[2.5px] h-3 bg-white rounded-full animate-voice-bar-1 origin-center" />
-            <span className="w-[2.5px] h-5 bg-white rounded-full animate-voice-bar-2 origin-center" />
-            <span className="w-[2.5px] h-2 bg-white rounded-full animate-voice-bar-3 origin-center" />
-            <span className="w-[2.5px] h-4 bg-white rounded-full animate-voice-bar-4 origin-center" />
-          </div>
-        ) : (
-          <Mic size={18} strokeWidth={2.5} />
-        )}
-      </button>
-    </>
+      {state === 'processing' ? (
+        <Loader2 className="animate-spin" size={18} />
+      ) : state === 'recording' ? (
+        <div className="flex items-center gap-0.5 justify-center h-4 w-6">
+          <span className="w-[2.5px] h-3 bg-white rounded-full animate-voice-bar-1 origin-center" />
+          <span className="w-[2.5px] h-5 bg-white rounded-full animate-voice-bar-2 origin-center" />
+          <span className="w-[2.5px] h-2 bg-white rounded-full animate-voice-bar-3 origin-center" />
+          <span className="w-[2.5px] h-4 bg-white rounded-full animate-voice-bar-4 origin-center" />
+        </div>
+      ) : (
+        <Mic size={18} strokeWidth={2.5} />
+      )}
+    </button>
   );
 }
