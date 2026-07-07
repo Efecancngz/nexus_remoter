@@ -362,12 +362,8 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-hud-bg text-slate-100 font-sans relative overflow-x-hidden flex justify-center pb-20">
-      {/* Decorative Blur Backgrounds */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/5 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500/5 rounded-full blur-[120px] pointer-events-none" />
-
       {/* Main Container - Centered and optimized for mobile screens */}
-      <div className="w-full max-w-md bg-slate-950/40 backdrop-blur-3xl min-h-screen flex flex-col border-x border-white/5 shadow-2xl relative">
+      <div className="w-full max-w-md bg-transparent min-h-screen flex flex-col shadow-2xl relative">
 
         {/* HEADER */}
         <Header
@@ -414,7 +410,7 @@ export default function App() {
           {activeTab === 'ai' && (
             <div className="p-6 space-y-6 animate-in slide-in-from-bottom duration-300">
               <div className="flex flex-col items-center text-center gap-2 mb-2">
-                <div className="w-12 h-12 rounded-2xl bg-hud-cyan/10 border border-cyan-500/20 flex items-center justify-center text-hud-cyan">
+                <div className="w-12 h-12 rounded-sm bg-hud-cyan/10 border border-hud-cyan/20 flex items-center justify-center text-hud-cyan">
                   <Sparkles size={24} className="animate-pulse" />
                 </div>
                 <h2 className="text-lg font-display font-black italic tracking-tighter">YAPAY ZEKA KOMUTLARI</h2>
@@ -425,7 +421,7 @@ export default function App() {
 
               <HudPanel className="p-5 space-y-4">
                 <textarea
-                  className="w-full bg-slate-950/80 border border-white/5 rounded-2xl p-4 text-sm outline-none h-32 resize-none placeholder:text-slate-600 focus:border-cyan-500/30 transition-colors"
+                  className="w-full bg-hud-bg/80 border border-hud-dim rounded-sm font-data p-4 text-sm outline-none h-32 resize-none placeholder:text-slate-600 focus:border-hud-cyan/60 focus:ring-1 focus:ring-hud-cyan/20 transition-colors"
                   placeholder="Örn: Bilgisayarın sesini kıs, youtube'u aç ve 5 saniye sonra kapat..."
                   value={aiPrompt}
                   onChange={e => setAiPrompt(e.target.value)}
@@ -462,7 +458,7 @@ export default function App() {
                     }
                   }}
                   disabled={isAiLoading || !aiPrompt.trim()}
-                  className="w-full bg-cyan-500 text-slate-950 font-black py-4 rounded-2xl flex items-center justify-center gap-2 disabled:opacity-40 transition-all shadow-lg shadow-cyan-500/10 active:scale-95"
+                  className="w-full bg-hud-cyan text-slate-950 font-black py-4 rounded-sm flex items-center justify-center gap-2 disabled:opacity-40 transition-all shadow-lg shadow-hud-cyan/10 active:scale-95"
                 >
                   {isAiLoading ? (
                     <>
@@ -483,7 +479,7 @@ export default function App() {
           {activeTab === 'scheduler' && (
             <div className="p-6 space-y-6 animate-in slide-in-from-bottom duration-300">
               <div className="flex flex-col items-center text-center gap-2 mb-2">
-                <div className="w-12 h-12 rounded-2xl bg-hud-cyan/10 border border-cyan-500/20 flex items-center justify-center text-hud-cyan">
+                <div className="w-12 h-12 rounded-sm bg-hud-cyan/10 border border-hud-cyan/20 flex items-center justify-center text-hud-cyan">
                   <Clock size={24} />
                 </div>
                 <h2 className="text-lg font-display font-black italic tracking-tighter">ZAMANLAYICI</h2>

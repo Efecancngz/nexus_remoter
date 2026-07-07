@@ -82,7 +82,7 @@ export default function SchedulerModal({ pcIpAddress, accessToken, onClose, onTo
             disabled={isLoading || !prompt.trim()}
             className="w-full bg-gradient-to-r from-hud-cyan to-hud-gold text-slate-950 font-display font-bold py-4 rounded-sm shadow-lg shadow-hud-cyan/20 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
           >
-            <Sparkles size={20} className="text-yellow-300" />
+            <Sparkles size={20} className="text-slate-950" />
             {isLoading ? 'İŞLENİYOR...' : 'EMRİ VER'}
           </button>
 
