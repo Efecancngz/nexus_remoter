@@ -677,6 +677,13 @@ class TestLaunchApp:
         assert startfile_calls == []
 
 
+class TestWait:
+    def test_non_numeric_value_raises(self):
+        from actions.wait import WaitAction
+        with pytest.raises(ValueError):
+            WaitAction().execute("abc", CTX)
+
+
 class TestSystemPower:
     def test_shutdown_uses_argv_no_shell(self, monkeypatch):
         calls = []
@@ -1822,7 +1829,23 @@ Checklist:
 - All suites green (pytest + vitest + tsc) before requesting review.
 ```
 
-- [ ] **Step 2: Link from the READMEs**
+- [ ] **Step 2: Update the PyInstaller build command in all three READMEs**
+
+The documented build command (line ~54 of each README) must collect the new
+package, or auto-discovery finds nothing in a frozen build. In
+`README_EN.md`, `README_TR.md`, `README_DE.md` change:
+
+```
+py -m PyInstaller --onefile --noconsole --name "NexusAgent" --paths . --collect-all services --collect-all core --collect-all utils main.py
+```
+
+to:
+
+```
+py -m PyInstaller --onefile --noconsole --name "NexusAgent" --paths . --collect-all services --collect-all core --collect-all utils --collect-all actions main.py
+```
+
+- [ ] **Step 3: Link from the READMEs**
 
 Add to each README's footer section, in its own language:
 - `README_EN.md`: `Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).`
@@ -1831,7 +1854,7 @@ Add to each README's footer section, in its own language:
 
 (TR/DE files are created in Task 11; the links land now so one task owns each file.)
 
-- [ ] **Step 3: Verify + commit**
+- [ ] **Step 4: Verify + commit**
 
 Proofread the doc against the real file tree (paths must exist). Then:
 
