@@ -1,12 +1,15 @@
 import os
+import re
 import shlex
 import subprocess
 import time
+import psutil
 import pyautogui
 import webbrowser
 import logging
 from core.service_interface import Service
 from utils.win_search import find_installed_app
+from utils.win_windows import find_pids_by_window_title
 
 # Optional dependencies
 try:
@@ -41,6 +44,26 @@ _APP_TARGETS = {
     'control': 'control',
 }
 
+# Processes CLOSE_APP must never touch, no matter what name the AI produces.
+_PROTECTED_PROCESSES = {
+    'system', 'registry', 'idle', 'csrss', 'winlogon', 'wininit', 'services',
+    'lsass', 'smss', 'svchost', 'dwm', 'explorer', 'fontdrvhost', 'conhost',
+    'python', 'pythonw',  # the agent itself
+}
+
+
+def _normalize_name(name):
+    """Lowercase and strip everything but letters/digits for fuzzy matching."""
+    return re.sub(r'[^a-z0-9]', '', name.lower())
+
+
+def _proc_base(name):
+    """Normalized process name without its .exe extension."""
+    name = name or ''
+    if name.lower().endswith('.exe'):
+        name = name[:-4]
+    return _normalize_name(name)
+
 
 class AutomationService(Service):
     def on_start(self):
@@ -70,6 +93,9 @@ class AutomationService(Service):
 
             elif action_type == 'LAUNCH_APP':
                 self.launch_app(value)
+
+            elif action_type == 'CLOSE_APP':
+                self.close_app(value)
 
             elif action_type == 'KEYPRESS':
                 self.press_key(value)
@@ -121,6 +147,55 @@ class AutomationService(Service):
         except Exception as e:
             logging.warning(f"[AutomationService] App launch error: {e}")
             raise
+
+    def close_app(self, value):
+        """Close an app by name: match process names first (e.g. 'cs2' ->
+        cs2.exe), then visible window titles (e.g. 'counter strike 2' ->
+        'Counter-Strike 2'). Protected system processes are never killed."""
+        search = _normalize_name(value or '')
+        if not search:
+            raise ValueError("Empty app name")
+
+        own_pid = os.getpid()
+        targets = {}
+
+        for proc in psutil.process_iter(['pid', 'name']):
+            try:
+                base = _proc_base(proc.info['name'])
+                if not base or base in _PROTECTED_PROCESSES or proc.info['pid'] == own_pid:
+                    continue
+                if search == base or (len(search) >= 4 and search in base):
+                    targets[proc.info['pid']] = proc
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+
+        if not targets:
+            for pid in find_pids_by_window_title(search):
+                if pid == own_pid:
+                    continue
+                try:
+                    proc = psutil.Process(pid)
+                    if _proc_base(proc.name()) not in _PROTECTED_PROCESSES:
+                        targets[pid] = proc
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+
+        if not targets:
+            raise ValueError(f"No running app matches: {value!r}")
+
+        procs = list(targets.values())
+        for proc in procs:
+            try:
+                proc.terminate()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+        gone, alive = psutil.wait_procs(procs, timeout=5)
+        for proc in alive:
+            try:
+                proc.kill()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+        logging.info(f"[AutomationService] Closed {len(procs)} process(es) for {value!r}")
 
     def press_key(self, value):
         special_keys = [

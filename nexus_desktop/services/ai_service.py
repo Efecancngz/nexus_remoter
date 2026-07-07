@@ -20,9 +20,9 @@ except ImportError:
 MODEL_NAME = "gemini-2.5-flash"
 
 _ACTION_TYPES = [
-    "LAUNCH_APP", "OPEN_URL", "COMMAND", "MACRO", "WAIT", "KEYPRESS",
-    "VOLUME_SET", "VOLUME_MUTE", "MEDIA_PLAY_PAUSE", "MEDIA_NEXT",
-    "MEDIA_PREV", "SYSTEM_POWER",
+    "LAUNCH_APP", "CLOSE_APP", "OPEN_URL", "COMMAND", "MACRO", "WAIT",
+    "KEYPRESS", "VOLUME_SET", "VOLUME_MUTE", "MEDIA_PLAY_PAUSE",
+    "MEDIA_NEXT", "MEDIA_PREV", "SYSTEM_POWER",
 ]
 
 _MACRO_INSTRUCTION = f"""Sen NEXUS AI asistanısın.
@@ -36,10 +36,16 @@ Görevin: Kullanıcı isteğini bilgisayar otomasyon adımlarına çevirmek.
 - "Bilgisayarı kilitle": {{ "type": "SYSTEM_POWER", "value": "lock", "description": "Bilgisayar kilitleniyor" }}
 - "Bilgisayarı kapat": {{ "type": "SYSTEM_POWER", "value": "shutdown", "description": "Bilgisayar kapatılıyor" }}
 - "Hesap makinesi aç": {{ "type": "LAUNCH_APP", "value": "calculator", "description": "Hesap makinesi açılıyor" }}
+- "Spotify'ı kapat": {{ "type": "CLOSE_APP", "value": "spotify", "description": "Spotify kapatılıyor" }}
+- "cs2'yi kapat": {{ "type": "CLOSE_APP", "value": "counter strike 2", "description": "Counter-Strike 2 kapatılıyor" }}
+- "cs2 aç": {{ "type": "LAUNCH_APP", "value": "counter strike 2", "description": "Counter-Strike 2 açılıyor" }}
 
 Önemli kısıtlama: Kapatma/yeniden başlatma/uyku/kilitleme için HER ZAMAN
 SYSTEM_POWER kullan (value: lock|shutdown|restart|sleep). Uygulama açmak için
-HER ZAMAN LAUNCH_APP kullan. COMMAND tipini sadece agent'ın izin verdiği kısa
+HER ZAMAN LAUNCH_APP, bir uygulamayı/oyunu kapatmak için HER ZAMAN CLOSE_APP
+kullan. Kısaltmaları uygulamanın tam adına genişlet (örn: "cs2" ->
+"counter strike 2", "lol" -> "league of legends", "ws" -> "whatsapp").
+COMMAND tipini sadece agent'ın izin verdiği kısa
 uygulama adları için kullan (örn: "calc", "notepad") — asla ham shell
 komutları (örn: "shutdown /s /t 0", "del ...") üretme, bunlar reddedilir.
 
