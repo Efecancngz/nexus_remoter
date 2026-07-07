@@ -111,7 +111,7 @@ export default function MediaControls({ systemStats, onMediaAction, onVolumeChan
 
           <button
             onClick={() => onMediaAction(ActionType.MEDIA_PLAY_PAUSE)}
-            className="p-5 bg-gradient-to-tr from-cyan-500 to-indigo-500 text-slate-950 rounded-full shadow-lg shadow-cyan-500/20 active:scale-95 transition-all hover:scale-105"
+            className="p-5 bg-hud-cyan text-slate-950 rounded-sm shadow-lg shadow-hud-cyan/20 active:scale-95 transition-all hover:scale-105"
           >
             <Play size={24} fill="currentColor" className="translate-x-[2px]" />
           </button>
