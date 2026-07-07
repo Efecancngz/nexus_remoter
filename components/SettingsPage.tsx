@@ -200,7 +200,7 @@ export default function SettingsPage({
                   onDisconnect();
                   onToast('Oturum sonlandırıldı. Yeniden eşleştirme gerekiyor.', 'info');
                 }}
-                className="w-full bg-red-500/10 border border-red-500/30 text-red-400 font-black py-4 rounded-2xl active:scale-95 transition-all"
+                className="w-full bg-red-500/10 border border-red-500/30 text-red-400 font-black py-4 rounded-sm active:scale-95 transition-all"
               >
                 OTURUMU SONLANDIR & YENİDEN EŞLEŞTİR
               </button>
@@ -364,7 +364,7 @@ export default function SettingsPage({
               <div className="pt-6 border-t border-hud-cyan/20">
                 <button
                   onClick={handleReset}
-                  className="w-full bg-red-500/5 border border-red-500/20 rounded-2xl p-5 flex items-center justify-between hover:bg-red-500/10 transition-colors group"
+                  className="w-full bg-red-500/5 border border-red-500/20 rounded-sm p-5 flex items-center justify-between hover:bg-red-500/10 transition-colors group"
                 >
                   <div className="flex items-center gap-4">
                     <Trash2 className="text-red-500" size={20} />

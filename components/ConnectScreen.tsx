@@ -84,7 +84,7 @@ export default function ConnectScreen({ onPair, initialIp = '', initialPin = '' 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* IP Address Input */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-display font-black text-hud-cyan/50 uppercase tracking-wider block px-1">
+              <label className="text-[10px] font-display font-black text-hud-cyan/70 uppercase tracking-wider block px-1">
                 PC IP ADRESİ
               </label>
               <div className="relative flex items-center">
@@ -114,7 +114,7 @@ export default function ConnectScreen({ onPair, initialIp = '', initialPin = '' 
 
             {/* PIN Code Input */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-display font-black text-hud-cyan/50 uppercase tracking-wider block px-1">
+              <label className="text-[10px] font-display font-black text-hud-cyan/70 uppercase tracking-wider block px-1">
                 GÜVENLİK PIN KODU
               </label>
               <input
@@ -130,7 +130,7 @@ export default function ConnectScreen({ onPair, initialIp = '', initialPin = '' 
 
             {/* Error Message */}
             {error && (
-              <div className="bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl p-3 text-center text-xs font-bold animate-shake">
+              <div className="bg-red-500/10 border border-red-500/20 text-red-400 rounded-sm p-3 text-center text-xs font-bold animate-shake">
                 {error}
               </div>
             )}

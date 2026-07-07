@@ -83,7 +83,7 @@ export default function EditModal({
                 <button
                   key={c.value}
                   onClick={() => setEditBtn({ ...editBtn, color: c.value })}
-                  className={`w-9 h-9 rounded-xl ${c.value} transition-all ${editBtn.color === c.value
+                  className={`w-9 h-9 rounded-sm ${c.value} transition-all ${editBtn.color === c.value
                     ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-900 scale-110'
                     : 'opacity-60 hover:opacity-100'}`}
                   title={c.label}
