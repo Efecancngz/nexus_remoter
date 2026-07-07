@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SkipBack, SkipForward, Play, Pause, Speaker, VolumeX, Volume2 } from 'lucide-react';
 import { ActionType, SystemStats } from '../types';
+import HudPanel from './hud/HudPanel';
 
 interface MediaControlsProps {
   systemStats?: SystemStats;
@@ -97,27 +98,27 @@ export default function MediaControls({ systemStats, onMediaAction, onVolumeChan
 
   return (
     <div className="px-6 py-4">
-      <div className="bg-slate-900/60 backdrop-blur-xl border border-white/5 rounded-[2rem] p-5 flex flex-col gap-4 shadow-xl">
-        
+      <HudPanel className="p-5 flex flex-col gap-4 shadow-xl">
+
         {/* Playback Controls */}
         <div className="flex items-center justify-between px-4">
-          <button 
-            onClick={() => onMediaAction(ActionType.MEDIA_PREV)} 
-            className="p-3 bg-slate-800/40 hover:bg-slate-800 rounded-full active:scale-90 transition-all text-slate-300"
+          <button
+            onClick={() => onMediaAction(ActionType.MEDIA_PREV)}
+            className="p-3 hud-chip rounded-sm active:scale-90 transition-all text-hud-cyan/80 hover:text-hud-cyan"
           >
             <SkipBack size={20} />
           </button>
-          
-          <button 
-            onClick={() => onMediaAction(ActionType.MEDIA_PLAY_PAUSE)} 
-            className="p-5 bg-gradient-to-tr from-cyan-500 to-indigo-500 text-slate-950 rounded-full shadow-lg shadow-cyan-500/20 active:scale-95 transition-all hover:scale-105"
+
+          <button
+            onClick={() => onMediaAction(ActionType.MEDIA_PLAY_PAUSE)}
+            className="p-5 bg-hud-cyan text-slate-950 rounded-sm shadow-lg shadow-hud-cyan/20 active:scale-95 transition-all hover:scale-105"
           >
             <Play size={24} fill="currentColor" className="translate-x-[2px]" />
           </button>
-          
-          <button 
-            onClick={() => onMediaAction(ActionType.MEDIA_NEXT)} 
-            className="p-3 bg-slate-800/40 hover:bg-slate-800 rounded-full active:scale-90 transition-all text-slate-300"
+
+          <button
+            onClick={() => onMediaAction(ActionType.MEDIA_NEXT)}
+            className="p-3 hud-chip rounded-sm active:scale-90 transition-all text-hud-cyan/80 hover:text-hud-cyan"
           >
             <SkipForward size={20} />
           </button>
@@ -128,31 +129,31 @@ export default function MediaControls({ systemStats, onMediaAction, onVolumeChan
 
         {/* Volume Slider Section */}
         <div className="flex items-center gap-3 px-2">
-          <button 
+          <button
             onClick={handleMuteToggle}
-            className="p-2 bg-slate-800/30 hover:bg-slate-800/80 rounded-xl transition-all text-slate-400 hover:text-white"
+            className="p-2 hud-chip rounded-sm transition-all text-hud-cyan/80 hover:text-hud-cyan"
           >
             {isMuted ? <VolumeX size={18} className="text-red-400" /> : <Volume2 size={18} />}
           </button>
 
           <div className="flex-1 flex items-center gap-3">
             <input
-              type="range" 
-              min="0" 
+              type="range"
+              min="0"
               max="100"
               value={volume}
               onChange={handleSliderChange}
               onMouseUp={handleDragEnd}
               onTouchEnd={handleDragEnd}
-              className="w-full accent-cyan-500 h-1.5 bg-slate-800 rounded-full appearance-none cursor-pointer"
+              className="appearance-none w-full h-[3px] rounded-full bg-hud-dim [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-hud-cyan [&::-webkit-slider-thumb]:shadow-[0_0_8px_rgb(34_211_238_/_0.8)] [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-hud-cyan cursor-pointer"
             />
-            <span className="text-[10px] font-mono font-black text-slate-400 w-8 text-right">
+            <span className="text-[10px] font-data font-black text-slate-400 w-8 text-right">
               {volume}%
             </span>
           </div>
         </div>
 
-      </div>
+      </HudPanel>
     </div>
   );
 }
