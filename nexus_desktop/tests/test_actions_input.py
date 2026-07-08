@@ -81,3 +81,39 @@ class TestFocusWindow:
     def test_empty_value_rejected(self):
         with pytest.raises(ValueError):
             self._action().execute("", CTX)
+
+
+class TestMouseClick:
+    def _run(self, monkeypatch, value):
+        from actions.mouse_click import MouseClickAction
+        events = []
+        monkeypatch.setattr("actions.mouse_click.pyautogui.size", lambda: (1920, 1080))
+        monkeypatch.setattr(
+            "actions.mouse_click.pyautogui.click",
+            lambda x, y, button="left": events.append(("click", x, y, button)),
+        )
+        monkeypatch.setattr(
+            "actions.mouse_click.pyautogui.doubleClick",
+            lambda x, y: events.append(("double", x, y)),
+        )
+        MouseClickAction().execute(value, CTX)
+        return events
+
+    def test_percent_coordinates(self, monkeypatch):
+        assert self._run(monkeypatch, "50%,50%") == [("click", 960, 540, "left")]
+
+    def test_pixel_coordinates_and_right_button(self, monkeypatch):
+        assert self._run(monkeypatch, "100, 200, right") == [("click", 100, 200, "right")]
+
+    def test_double_click(self, monkeypatch):
+        assert self._run(monkeypatch, "10%,10%,double") == [("double", 192, 108)]
+
+    def test_out_of_range_clamped(self, monkeypatch):
+        assert self._run(monkeypatch, "5000,5000") == [("click", 1919, 1079, "left")]
+
+    def test_bad_formats_rejected(self, monkeypatch):
+        from actions.mouse_click import MouseClickAction
+        monkeypatch.setattr("actions.mouse_click.pyautogui.size", lambda: (1920, 1080))
+        for bad in ("", "100", "a,b", "50%,50%,middle", "1,2,3,4"):
+            with pytest.raises(ValueError):
+                MouseClickAction().execute(bad, CTX)
