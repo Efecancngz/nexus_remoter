@@ -20,6 +20,9 @@ class FocusWindowAction(Action):
             raise ValueError("Empty window name")
         windows = list_windows()
         titles = {title: hwnd for hwnd, title, _pid in windows}
+        # Looser than the 0.75 default (kept for CLOSE_APP): window titles
+        # embed extra words ("Spotify Premium"), and misfocusing is
+        # reversible — unlike killing the wrong process.
         winner = best_match(value, titles.keys(), threshold=0.6)
         if winner is None:
             raise ValueError(f"No window matches: {value!r}")
