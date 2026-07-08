@@ -8,7 +8,6 @@ from .registry import register_action
 @register_action("SYSTEM_POWER")
 class SystemPowerAction(Action):
     prompt_examples = [
-        '- "Sesi kapat": {{ "type": "VOLUME_MUTE", "value": "true", "description": "Ses kapatılıyor" }}',
         '- "Bilgisayarı kilitle": {{ "type": "SYSTEM_POWER", "value": "lock", "description": "Bilgisayar kilitleniyor" }}',
         '- "Bilgisayarı kapat": {{ "type": "SYSTEM_POWER", "value": "shutdown", "description": "Bilgisayar kapatılıyor" }}',
     ]

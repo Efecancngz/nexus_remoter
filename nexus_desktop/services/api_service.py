@@ -119,26 +119,13 @@ class ApiService(Service):
         action_type = data.get('type', '')
         logging.info("[AuthSuccess] Command accepted: type=%s", action_type)
 
-        # Route commands to the correct service via EventBus
-        
-        # Media commands → MediaService
-        if action_type == 'VOLUME_SET':
-            self.bus.publish("VOLUME_SET", data)
-        elif action_type == 'VOLUME_MUTE':
-            self.bus.publish("VOLUME_MUTE", data)
-        elif action_type == 'MEDIA_PLAY_PAUSE':
-            self.bus.publish("MEDIA_PLAY_PAUSE", data)
-        elif action_type == 'MEDIA_NEXT':
-            self.bus.publish("MEDIA_NEXT", data)
-        elif action_type == 'MEDIA_PREV':
-            self.bus.publish("MEDIA_PREV", data)
-        # Scheduler commands → SchedulerService
-        elif action_type == 'SCHEDULE_ACTION':
+        # SCHEDULE_ACTION is a scheduler meta-command, not an action module;
+        # every action type goes to AutomationService via the registry.
+        if action_type == 'SCHEDULE_ACTION':
             self.bus.publish("SCHEDULE_ACTION", data)
-        # All other commands → AutomationService
         else:
             self.bus.publish("COMMAND_RECEIVED", data)
-        
+
         return jsonify({"success": True, "status": "queued"}), 200
 
     def verify(self):
