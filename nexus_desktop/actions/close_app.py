@@ -3,6 +3,7 @@ import os
 
 import psutil
 
+from utils.name_match import best_match
 from utils.win_windows import find_pids_by_window_title
 
 from ._targets import PROTECTED_PROCESSES, normalize_name, proc_base
@@ -53,6 +54,20 @@ class CloseAppAction(Action):
                         targets[pid] = proc
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
+
+        if not targets:
+            candidates = {}
+            for proc in psutil.process_iter(['pid', 'name']):
+                try:
+                    base = proc_base(proc.info['name'])
+                    if base and base not in PROTECTED_PROCESSES and proc.info['pid'] != own_pid:
+                        candidates.setdefault(base, []).append(proc)
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+            winner = best_match(search, candidates.keys())
+            if winner:
+                for proc in candidates[winner]:
+                    targets[proc.pid] = proc
 
         if not targets:
             raise ValueError(f"No running app matches: {value!r}")

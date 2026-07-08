@@ -49,3 +49,7 @@ class TestFindSteamApp:
     def test_no_steam_installed_returns_none(self, monkeypatch):
         monkeypatch.setattr(win_search, "_steam_library_dirs", lambda: iter([]))
         assert win_search.find_steam_app("portal2") is None
+
+    def test_typo_matches_fuzzily(self, steam_library):
+        _write_manifest(steam_library, 431960, "Wallpaper Engine")
+        assert win_search.find_steam_app("walpaper engine") == "steam://rungameid/431960"

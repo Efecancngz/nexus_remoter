@@ -111,7 +111,7 @@ def psutil_env(monkeypatch):
     def setup(procs, window_pids=frozenset()):
         monkeypatch.setattr(
             "actions.close_app.psutil.process_iter",
-            lambda attrs: iter(procs),
+            lambda attrs: iter(list(procs)),
         )
         monkeypatch.setattr(
             "actions.close_app.psutil.wait_procs",
@@ -164,3 +164,8 @@ class TestCloseApp:
         with pytest.raises(ValueError):
             CloseAppAction().execute("cs2", CTX)
         assert not procs[0].terminated
+
+    def test_typo_matches_process_fuzzily(self, psutil_env):
+        procs = psutil_env([_FakeProc(100, "spotify.exe")])
+        CloseAppAction().execute("spotfy", CTX)
+        assert procs[0].terminated
