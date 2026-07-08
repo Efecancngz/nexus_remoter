@@ -51,7 +51,7 @@ Modified the code and want to repackage it? Use this magic command:
 pip install pyinstaller
 cd nexus_desktop
 # Package with PyInstaller (Collecting all modules)
-py -m PyInstaller --onefile --noconsole --name "NexusAgent" --paths . --collect-all services --collect-all core --collect-all utils main.py
+py -m PyInstaller --onefile --noconsole --name "NexusAgent" --paths . --collect-all services --collect-all core --collect-all utils --collect-all actions main.py
 ```
 *The output will be in the `dist/NexusAgent.exe` folder.*
 
@@ -63,4 +63,6 @@ npm run dev
 ```
 
 ---
+Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 [🏠 Back to Home](README.md)
