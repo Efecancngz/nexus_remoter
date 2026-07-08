@@ -51,7 +51,7 @@ Code geändert und neu verpacken? Verwenden Sie diesen Befehl:
 pip install pyinstaller
 cd nexus_desktop
 # Mit PyInstaller verpacken (Alle Module sammeln)
-py -m PyInstaller --onefile --noconsole --name "NexusAgent" --paths . --collect-all services --collect-all core --collect-all utils main.py
+py -m PyInstaller --onefile --noconsole --name "NexusAgent" --paths . --collect-all services --collect-all core --collect-all utils --collect-all actions main.py
 ```
 *Die Datei finden Sie im Ordner `dist/NexusAgent.exe`.*
 
@@ -63,4 +63,6 @@ npm run dev
 ```
 
 ---
+Beiträge sind willkommen — siehe [CONTRIBUTING_DE.md](CONTRIBUTING_DE.md).
+
 [🏠 Zurück zur Startseite](README.md)

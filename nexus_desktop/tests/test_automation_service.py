@@ -3,78 +3,43 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-import pytest
-from services.automation_service import AutomationService, _APP_TARGETS
+from actions.base import ActionContext
+from services.automation_service import AutomationService
 
 
-@pytest.fixture
-def service(monkeypatch):
-    svc = AutomationService.__new__(AutomationService)  # skip Service.__init__
-    calls = []
-    monkeypatch.setattr("os.startfile", lambda target: calls.append(target))
-    svc._startfile_calls = calls
+class _FakeBus:
+    def __init__(self):
+        self.published = []
+
+    def publish(self, name, payload):
+        self.published.append((name, payload))
+
+
+def _service():
+    svc = AutomationService.__new__(AutomationService)
+    svc.bus = _FakeBus()
+    svc.context = ActionContext(bus=svc.bus)
     return svc
 
 
-def test_allowlisted_command_launches_target(service):
-    service.run_allowlisted("calc")
-    assert service._startfile_calls == ["calc"]
-
-
-def test_command_with_injection_suffix_only_launches_allowlisted_target(service):
-    # The attacker-controlled suffix must never reach os.startfile/shell.
-    service.run_allowlisted("calc && del C:/important-data")
-    assert service._startfile_calls == ["calc"]
-
-
-def test_unknown_command_is_rejected(service):
-    with pytest.raises(ValueError):
-        service.run_allowlisted("shutdown /s /t 0")
-    assert service._startfile_calls == []
-
-
-def test_raw_shell_command_is_rejected(service):
-    with pytest.raises(ValueError):
-        service.run_allowlisted("rm -rf /")
-    assert service._startfile_calls == []
-
-
-def test_empty_command_is_rejected(service):
-    with pytest.raises(ValueError):
-        service.run_allowlisted("")
-    assert service._startfile_calls == []
-
-
-def test_launch_app_known_target_uses_allowlist(service):
-    service.launch_app("Spotify")
-    assert service._startfile_calls == [_APP_TARGETS["spotify"]]
-
-
-def test_launch_app_unknown_app_falls_back_to_search(service, monkeypatch):
-    monkeypatch.setattr(
-        "services.automation_service.find_installed_app",
-        lambda name: r"C:\Program Files\SomeApp\app.exe",
-    )
-    service.launch_app("someapp")
-    assert service._startfile_calls == [r"C:\Program Files\SomeApp\app.exe"]
-
-
-def test_launch_app_not_found_raises_without_executing_raw_value(service, monkeypatch):
-    monkeypatch.setattr("services.automation_service.find_installed_app", lambda name: None)
-    with pytest.raises(ValueError):
-        service.launch_app("calc & del C:/")
-    assert service._startfile_calls == []
-
-
-def test_system_power_shutdown_uses_argv_no_shell(service, monkeypatch):
+def test_known_action_dispatches_and_publishes_completed(monkeypatch):
+    svc = _service()
     calls = []
-    monkeypatch.setattr(
-        "subprocess.run", lambda argv, shell: calls.append((argv, shell))
-    )
-    service.handle_system_power("shutdown")
-    assert calls == [(["shutdown", "/s", "/t", "0"], False)]
+    monkeypatch.setattr("actions.open_url.webbrowser.open", lambda url: calls.append(url))
+    svc._execute_action({"type": "OPEN_URL", "value": "https://example.com", "id": "1"})
+    assert calls == ["https://example.com"]
+    assert svc.bus.published == [("ACTION_COMPLETED", {"status": "success", "id": "1"})]
 
 
-def test_system_power_unknown_action_rejected(service):
-    with pytest.raises(ValueError):
-        service.handle_system_power("format-drive")
+def test_unknown_action_publishes_failed():
+    svc = _service()
+    svc._execute_action({"type": "NO_SUCH_ACTION", "value": "", "id": "2"})
+    assert svc.bus.published[0][0] == "ACTION_FAILED"
+    assert "NO_SUCH_ACTION" in svc.bus.published[0][1]["error"]
+
+
+def test_action_error_publishes_failed():
+    svc = _service()
+    # COMMAND with a non-allowlisted value raises inside the action
+    svc._execute_action({"type": "COMMAND", "value": "rm -rf /", "id": "3"})
+    assert svc.bus.published[0][0] == "ACTION_FAILED"

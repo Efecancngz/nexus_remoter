@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, X, Clock, Terminal, Globe, PlayCircle, Settings2, Monitor } from 'lucide-react';
-import { AutomationStep, ActionType } from '../types';
+import { AutomationStep, ActionType, ActionTypeValue } from '../types';
 import HudPanel from './hud/HudPanel';
 
 interface CommandPreviewModalProps {
@@ -51,32 +51,44 @@ export default function CommandPreviewModal({
   };
 
   // Helper to render step icons
-  const getStepIcon = (type: ActionType) => {
+  const getStepIcon = (type: ActionTypeValue) => {
     switch (type) {
       case ActionType.LAUNCH_APP:
         return <Terminal className="text-emerald-400" size={16} />;
+      case ActionType.CLOSE_APP:
+        return <Terminal className="text-hud-gold" size={16} />;
       case ActionType.OPEN_URL:
         return <Globe className="text-hud-cyan" size={16} />;
       case ActionType.KEYPRESS:
         return <PlayCircle className="text-purple-400" size={16} />;
       case ActionType.SYSTEM_POWER:
         return <Monitor className="text-red-400" size={16} />;
+      case ActionType.FOCUS_WINDOW:
+      case ActionType.HOTKEY:
+      case ActionType.MOUSE_CLICK:
+        return <PlayCircle className="text-hud-cyan" size={16} />;
       default:
         return <Settings2 className="text-slate-400" size={16} />;
     }
   };
 
   // Helper to get type styling
-  const getTypeBadgeStyle = (type: ActionType) => {
+  const getTypeBadgeStyle = (type: ActionTypeValue) => {
     switch (type) {
       case ActionType.LAUNCH_APP:
         return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+      case ActionType.CLOSE_APP:
+        return 'bg-hud-gold/10 text-hud-gold border-hud-gold/20';
       case ActionType.OPEN_URL:
         return 'bg-hud-cyan/10 text-hud-cyan border-hud-cyan/20';
       case ActionType.KEYPRESS:
         return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
       case ActionType.SYSTEM_POWER:
         return 'bg-red-500/10 text-red-400 border-red-500/20';
+      case ActionType.FOCUS_WINDOW:
+      case ActionType.HOTKEY:
+      case ActionType.MOUSE_CLICK:
+        return 'bg-hud-cyan/10 text-hud-cyan border-hud-cyan/20';
       default:
         return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
     }

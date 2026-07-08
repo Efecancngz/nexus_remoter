@@ -51,7 +51,7 @@ Kodu değiştirdiniz ve arkadaşlarınızla paylaşmak için tekrar EXE yapmak m
 pip install pyinstaller
 cd nexus_desktop
 # PyInstaller ile paketle (Tüm modülleri gömerek)
-py -m PyInstaller --onefile --noconsole --name "NexusAgent" --paths . --collect-all services --collect-all core --collect-all utils main.py
+py -m PyInstaller --onefile --noconsole --name "NexusAgent" --paths . --collect-all services --collect-all core --collect-all utils --collect-all actions main.py
 ```
 *Oluşan dosya `dist/NexusAgent.exe` klasöründe olacaktır.*
 
@@ -63,4 +63,6 @@ npm run dev
 ```
 
 ---
+Katkılar memnuniyetle karşılanır — bkz. [CONTRIBUTING_TR.md](CONTRIBUTING_TR.md).
+
 [🏠 Ana Sayfaya Dön](README.md)

@@ -17,34 +17,35 @@ except ImportError:
     genai = None
     logging.warning("[AI] google-generativeai not installed; /ai routes disabled")
 
+from actions import all_actions
+
 MODEL_NAME = "gemini-2.5-flash"
 
-_ACTION_TYPES = [
-    "LAUNCH_APP", "OPEN_URL", "COMMAND", "MACRO", "WAIT", "KEYPRESS",
-    "VOLUME_SET", "VOLUME_MUTE", "MEDIA_PLAY_PAUSE", "MEDIA_NEXT",
-    "MEDIA_PREV", "SYSTEM_POWER",
-]
+_ACTION_TYPES = sorted(all_actions().keys())
 
-_MACRO_INSTRUCTION = f"""Sen NEXUS AI asistanısın.
-Görevin: Kullanıcı isteğini bilgisayar otomasyon adımlarına çevirmek.
-Önemli: Sadece saf JSON dizisi döndür. Başka açıklama yapma.
 
-Örnekler:
-- "Spotify aç": {{ "type": "LAUNCH_APP", "value": "spotify", "description": "Spotify açılıyor" }}
-- "Sesi kapat": {{ "type": "VOLUME_MUTE", "value": "true", "description": "Ses kapatılıyor" }}
-- "Youtube'u aç": {{ "type": "OPEN_URL", "value": "https://youtube.com", "description": "Youtube açılıyor" }}
-- "Bilgisayarı kilitle": {{ "type": "SYSTEM_POWER", "value": "lock", "description": "Bilgisayar kilitleniyor" }}
-- "Bilgisayarı kapat": {{ "type": "SYSTEM_POWER", "value": "shutdown", "description": "Bilgisayar kapatılıyor" }}
-- "Hesap makinesi aç": {{ "type": "LAUNCH_APP", "value": "calculator", "description": "Hesap makinesi açılıyor" }}
+def _build_macro_instruction():
+    example_lines = []
+    hint_lines = []
+    for _type, cls in sorted(all_actions().items()):
+        example_lines.extend(
+            ex.replace("{{", "{").replace("}}", "}") for ex in cls.prompt_examples
+        )
+        if cls.prompt_hint:
+            hint_lines.append(cls.prompt_hint)
+    return (
+        "Sen NEXUS AI asistanısın.\n"
+        "Görevin: Kullanıcı isteğini bilgisayar otomasyon adımlarına çevirmek.\n"
+        "Önemli: Sadece saf JSON dizisi döndür. Başka açıklama yapma.\n\n"
+        "Örnekler:\n"
+        + "\n".join(example_lines)
+        + "\n\n"
+        + "\n".join(hint_lines)
+        + "\n\nKullanılabilir Tipler: " + ", ".join(_ACTION_TYPES)
+    )
 
-Önemli kısıtlama: Kapatma/yeniden başlatma/uyku/kilitleme için HER ZAMAN
-SYSTEM_POWER kullan (value: lock|shutdown|restart|sleep). Uygulama açmak için
-HER ZAMAN LAUNCH_APP kullan. COMMAND tipini sadece agent'ın izin verdiği kısa
-uygulama adları için kullan (örn: "calc", "notepad") — asla ham shell
-komutları (örn: "shutdown /s /t 0", "del ...") üretme, bunlar reddedilir.
 
-Ardışık işlemlerde araya mutlaka bekleme (WAIT) koy.
-Kullanılabilir Tipler: {", ".join(_ACTION_TYPES)}"""
+_MACRO_INSTRUCTION = _build_macro_instruction()
 
 _SCHEDULE_INSTRUCTION = """Sen bir ZAMANLAYICI asistanısın.
 Kullanıcı "1 saat sonra kapat" gibi komutlar verecek. Bunu JSON'a çevir.

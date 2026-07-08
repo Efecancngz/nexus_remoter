@@ -1,6 +1,10 @@
 
 export enum ActionType {
   LAUNCH_APP = 'LAUNCH_APP',
+  CLOSE_APP = 'CLOSE_APP',
+  FOCUS_WINDOW = 'FOCUS_WINDOW',
+  HOTKEY = 'HOTKEY',
+  MOUSE_CLICK = 'MOUSE_CLICK',
   OPEN_URL = 'OPEN_URL',
   COMMAND = 'COMMAND',
   MACRO = 'MACRO',
@@ -14,9 +18,13 @@ export enum ActionType {
   SYSTEM_POWER = 'SYSTEM_POWER'
 }
 
+/** Action types arrive from the backend as strings; unknown ones must not
+ *  break rendering. `string & {}` keeps ActionType autocompletion. */
+export type ActionTypeValue = ActionType | (string & {});
+
 export interface AutomationStep {
   id: string;
-  type: ActionType;
+  type: ActionTypeValue;
   value: string;
   description: string;
 }
