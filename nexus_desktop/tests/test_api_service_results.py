@@ -37,7 +37,7 @@ def test_execute_returns_success_when_action_completes(client):
         headers=_hdr(token),
     )
     assert res.status_code == 200
-    assert res.get_json() == {"success": True, "error": None}
+    assert res.get_json() == {"success": True, "error": None, "data": None}
 
 
 def test_execute_returns_failure_with_error(client):
@@ -52,7 +52,7 @@ def test_execute_returns_failure_with_error(client):
         headers=_hdr(token),
     )
     assert res.status_code == 200
-    assert res.get_json() == {"success": False, "error": "No running app matches"}
+    assert res.get_json() == {"success": False, "error": "No running app matches", "data": None}
 
 
 def test_execute_times_out_when_no_result(client):
@@ -80,6 +80,28 @@ def test_schedule_action_returns_queued_without_waiting(client):
     assert res.status_code == 200
     assert res.get_json()["status"] == "queued"
     assert len(captured) == 1
+
+
+def test_execute_returns_data_from_action(client):
+    app_client, bus, svc, token = client
+    bus.subscribe(
+        "COMMAND_RECEIVED",
+        lambda ev: bus.publish("ACTION_COMPLETED", {"status": "success", "id": ev.payload["id"], "data": {"text": "clip"}}),
+    )
+    res = app_client.post("/execute", json={"id": "d1", "type": "CLIPBOARD_GET", "value": ""}, headers=_hdr(token))
+    assert res.status_code == 200
+    assert res.get_json() == {"success": True, "error": None, "data": {"text": "clip"}}
+
+
+def test_execute_data_null_for_effect_action(client):
+    app_client, bus, svc, token = client
+    bus.subscribe(
+        "COMMAND_RECEIVED",
+        lambda ev: bus.publish("ACTION_COMPLETED", {"status": "success", "id": ev.payload["id"], "data": None}),
+    )
+    res = app_client.post("/execute", json={"id": "d2", "type": "TYPE_TEXT", "value": "hi"}, headers=_hdr(token))
+    assert res.status_code == 200
+    assert res.get_json() == {"success": True, "error": None, "data": None}
 
 
 def test_missing_id_returns_queued_without_waiting(client):

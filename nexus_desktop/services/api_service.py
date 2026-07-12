@@ -146,7 +146,7 @@ class ApiService(Service):
         result = self.pending.wait(request_id, self.EXECUTE_TIMEOUT)
         if result is None:
             return jsonify({"success": False, "error": "Action timed out"}), 200
-        return jsonify({"success": result["success"], "error": result.get("error")}), 200
+        return jsonify({"success": result["success"], "error": result.get("error"), "data": result.get("data")}), 200
 
     def verify(self):
         """Lightweight session-token check for the client's periodic heartbeat."""
@@ -166,9 +166,10 @@ class ApiService(Service):
             self.last_stats['volume'] = self.media_service.get_volume()
 
     def _on_action_completed(self, event):
-        rid = (event.payload or {}).get('id')
+        payload = event.payload or {}
+        rid = payload.get('id')
         if rid:
-            self.pending.resolve(rid, {"success": True})
+            self.pending.resolve(rid, {"success": True, "data": payload.get("data")})
 
     def _on_action_failed(self, event):
         payload = event.payload or {}

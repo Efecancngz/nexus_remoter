@@ -19,4 +19,6 @@ class Action:
     prompt_hint: str = ""
 
     def execute(self, value, context):
+        """Run the action. May return a JSON-serializable value (dict or str)
+        to send back to the client, or None for effect-only actions."""
         raise NotImplementedError
