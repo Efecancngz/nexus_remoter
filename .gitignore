@@ -24,6 +24,9 @@ logs/
 # Environment & Private Files
 .env
 .env.local
+
+# TLS certificates (generated per-install by CertStore)
+nexus_desktop/data/certs/
 .env.*.local
 .env.development.local
 .env.test.local
