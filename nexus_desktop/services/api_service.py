@@ -10,6 +10,7 @@ import ipaddress
 import os
 import sys
 from core.cert_store import CertStore
+from core.pending_results import PendingResults
 from utils.network import get_local_ip
 
 # Suppress Flask logging
@@ -17,6 +18,8 @@ log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
 class ApiService(Service):
+    EXECUTE_TIMEOUT = 15.0  # seconds; must exceed CloseAppAction's 5s wait_procs
+
     def __init__(self, name, event_bus, security_manager, media_service=None, start_server: bool = True):
         super().__init__(name, event_bus)
         self.security = security_manager
@@ -55,6 +58,11 @@ class ApiService(Service):
         # Subscribe to stats updates
         self.bus.subscribe("SYSTEM_STATS_UPDATED", self.on_stats_update)
 
+        # Correlate action results back to the blocking /execute request.
+        self.pending = PendingResults()
+        self.bus.subscribe("ACTION_COMPLETED", self._on_action_completed)
+        self.bus.subscribe("ACTION_FAILED", self._on_action_failed)
+
         self.log = logging.getLogger('werkzeug')
         self.log.setLevel(logging.ERROR)
 
@@ -78,7 +86,7 @@ class ApiService(Service):
         return None
 
     def _run_server(self):
-        self.app.run(host='0.0.0.0', port=8080, debug=False, use_reloader=False, ssl_context=(self.cert_path, self.key_path))
+        self.app.run(host='0.0.0.0', port=8080, debug=False, use_reloader=False, threaded=True, ssl_context=(self.cert_path, self.key_path))
 
     def on_stop(self):
         pass
@@ -117,16 +125,28 @@ class ApiService(Service):
              return jsonify({"success": False, "error": "Unauthorized: Invalid or missing token"}), 401
 
         action_type = data.get('type', '')
+        request_id = data.get('id')
         logging.info("[AuthSuccess] Command accepted: type=%s", action_type)
 
-        # SCHEDULE_ACTION is a scheduler meta-command, not an action module;
-        # every action type goes to AutomationService via the registry.
+        # SCHEDULE_ACTION is a scheduler meta-command: scheduling it IS the
+        # success; no action result will ever come, so never wait.
         if action_type == 'SCHEDULE_ACTION':
             self.bus.publish("SCHEDULE_ACTION", data)
-        else:
-            self.bus.publish("COMMAND_RECEIVED", data)
+            return jsonify({"success": True, "status": "queued"}), 200
 
-        return jsonify({"success": True, "status": "queued"}), 200
+        # No id -> legacy fire-and-forget; nothing to correlate against.
+        if not request_id:
+            self.bus.publish("COMMAND_RECEIVED", data)
+            return jsonify({"success": True, "status": "queued"}), 200
+
+        # Register BEFORE publishing so the result event (fired later from the
+        # action pool thread) cannot be missed.
+        self.pending.register(request_id)
+        self.bus.publish("COMMAND_RECEIVED", data)
+        result = self.pending.wait(request_id, self.EXECUTE_TIMEOUT)
+        if result is None:
+            return jsonify({"success": False, "error": "Action timed out"}), 200
+        return jsonify({"success": result["success"], "error": result.get("error")}), 200
 
     def verify(self):
         """Lightweight session-token check for the client's periodic heartbeat."""
@@ -144,6 +164,17 @@ class ApiService(Service):
         # Inject volume if media service is available
         if self.media_service:
             self.last_stats['volume'] = self.media_service.get_volume()
+
+    def _on_action_completed(self, event):
+        rid = (event.payload or {}).get('id')
+        if rid:
+            self.pending.resolve(rid, {"success": True})
+
+    def _on_action_failed(self, event):
+        payload = event.payload or {}
+        rid = payload.get('id')
+        if rid:
+            self.pending.resolve(rid, {"success": False, "error": payload.get('error', 'Action failed')})
 
     def start_stats_polling(self):
         def poll():

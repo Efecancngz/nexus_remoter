@@ -66,3 +66,4 @@ def test_run_server_passes_ssl_context_to_flask(monkeypatch, tmp_path):
     assert captured["ssl_context"] == (svc.cert_path, svc.key_path)
     assert captured["host"] == "0.0.0.0"
     assert captured["port"] == 8080
+    assert captured["threaded"] is True
