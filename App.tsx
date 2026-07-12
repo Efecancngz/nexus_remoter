@@ -19,6 +19,7 @@ import ConnectScreen from './components/ConnectScreen';
 import VoiceButton from './components/VoiceButton';
 import CommandPreviewModal from './components/CommandPreviewModal';
 import HudPanel from './components/hud/HudPanel';
+import { ScreenshotModal } from './components/ScreenshotModal';
 
 // Hooks
 import { useConnection } from './hooks/useConnection';
@@ -82,6 +83,7 @@ export default function App() {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiStatus, setAiStatus] = useState<string | null>(null);
   const [previewSteps, setPreviewSteps] = useState<AutomationStep[] | null>(null);
+  const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
 
   // Voice Remote settings with localStorage persistence
   const [voiceFeedback, setVoiceFeedback] = useState(() => {
@@ -113,6 +115,14 @@ export default function App() {
   const triggerHaptic = (pattern: number | number[]) => {
     if (hapticFeedback && navigator.vibrate) {
       navigator.vibrate(pattern);
+    }
+  };
+
+  const surfaceRunData = (data: unknown) => {
+    if (typeof data === 'string' && data.startsWith('data:image/')) {
+      setScreenshotUrl(data);
+    } else if (data && typeof data === 'object' && 'text' in (data as any)) {
+      addToast(`📋 Pano: ${(data as any).text}`, 'info');
     }
   };
 
@@ -217,6 +227,9 @@ export default function App() {
         }
       } else {
         triggerHaptic([45, 55, 45]); // Vibrate on success: double brief pulse
+        if (result.success && result.data != null) {
+          surfaceRunData(result.data);
+        }
       }
     } catch (e: any) {
       triggerHaptic(200);
@@ -257,6 +270,9 @@ export default function App() {
       } else {
         addToast(`✅ ${btn.label} çalıştırıldı`, 'success');
         triggerHaptic([40, 50, 40]); // Vibrate double brief on success
+        if (result.success && result.data != null) {
+          surfaceRunData(result.data);
+        }
       }
     } catch (e: any) {
       triggerHaptic(200);
@@ -589,6 +605,11 @@ export default function App() {
             onClose={() => setEditingBtn(null)}
             onReset={handleReset}
           />
+        )}
+
+        {/* Screenshot Modal */}
+        {screenshotUrl && (
+          <ScreenshotModal dataUrl={screenshotUrl} onClose={() => setScreenshotUrl(null)} />
         )}
 
         {/* Global executing state feedback */}
