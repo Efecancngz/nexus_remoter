@@ -5,7 +5,11 @@ import ctypes.wintypes
 
 from utils.name_match import normalize
 
+ctypes.windll.user32.GetForegroundWindow.restype = ctypes.wintypes.HWND
+
 _SW_RESTORE = 9
+_SW_MAXIMIZE = 3
+_SW_MINIMIZE = 6
 
 
 def list_windows():
@@ -49,3 +53,24 @@ def focus_window_handle(hwnd):
     if user32.IsIconic(hwnd):
         user32.ShowWindow(hwnd, _SW_RESTORE)
     user32.SetForegroundWindow(hwnd)
+
+
+def minimize(hwnd):
+    """Minimize a window."""
+    ctypes.windll.user32.ShowWindow(hwnd, _SW_MINIMIZE)
+
+
+def maximize(hwnd):
+    """Maximize a window."""
+    ctypes.windll.user32.ShowWindow(hwnd, _SW_MAXIMIZE)
+
+
+def restore(hwnd):
+    """Restore a window to its non-minimized/maximized size."""
+    ctypes.windll.user32.ShowWindow(hwnd, _SW_RESTORE)
+
+
+def get_foreground():
+    """Return the handle of the current foreground window, or None."""
+    hwnd = ctypes.windll.user32.GetForegroundWindow()
+    return hwnd or None
