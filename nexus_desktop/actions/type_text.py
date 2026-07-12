@@ -1,5 +1,7 @@
 import pyautogui
 
+from utils.win_clipboard import set_text
+
 from .base import Action
 from .registry import register_action
 
@@ -14,4 +16,7 @@ class TypeTextAction(Action):
     def execute(self, value, context):
         if not (value or '').strip():
             raise ValueError("Empty text")
-        pyautogui.write(value, interval=0.02)
+        # Paste via clipboard so non-ASCII (Turkish) characters type correctly;
+        # pyautogui.write() silently drops characters outside the US keyboard.
+        set_text(value)
+        pyautogui.hotkey('ctrl', 'v')

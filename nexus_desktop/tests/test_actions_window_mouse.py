@@ -70,12 +70,15 @@ class TestMouseScroll:
 
 
 class TestTypeText:
-    def test_writes_text(self, monkeypatch):
-        calls = []
-        monkeypatch.setattr("actions.type_text.pyautogui.write", lambda v, interval: calls.append(v))
+    def test_pastes_text_via_clipboard(self, monkeypatch):
+        clip = []
+        hotkeys = []
+        monkeypatch.setattr("actions.type_text.set_text", lambda t: clip.append(t))
+        monkeypatch.setattr("actions.type_text.pyautogui.hotkey", lambda *keys: hotkeys.append(keys))
         from actions.type_text import TypeTextAction
-        TypeTextAction().execute("hello", CTX)
-        assert calls == ["hello"]
+        TypeTextAction().execute("Merhaba dünya", CTX)
+        assert clip == ["Merhaba dünya"]
+        assert hotkeys == [("ctrl", "v")]
 
     def test_empty_raises(self):
         from actions.type_text import TypeTextAction
