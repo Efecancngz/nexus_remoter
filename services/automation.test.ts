@@ -149,6 +149,32 @@ describe('ActionExecutor.run', () => {
     expect(result).toEqual({ success: true });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it('returns the data payload from a data-returning step', async () => {
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    fetchMock.mockResolvedValue(jsonResponse(200, { success: true, data: 'data:image/jpeg;base64,AAAA' }));
+
+    const runPromise = executor.run(
+      [step({ type: ActionType.SCREENSHOT, value: '', description: 'Ekran görüntüsü' })],
+      '1.2.3.4'
+    );
+    const result = await runPromise;
+
+    expect(result.success).toBe(true);
+    expect(result.data).toBe('data:image/jpeg;base64,AAAA');
+  });
+
+  it('leaves data undefined for effect-only steps', async () => {
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    fetchMock.mockResolvedValue(jsonResponse(200, { success: true, data: null }));
+
+    const result = await executor.run(
+      [step({ type: ActionType.KEYPRESS, value: 'a' })],
+      '1.2.3.4'
+    );
+
+    expect(result).toEqual({ success: true });
+  });
 });
 
 describe('ActionExecutor.ping', () => {

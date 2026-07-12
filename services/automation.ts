@@ -15,8 +15,10 @@ export class ActionExecutor {
   }
 
 
-  async run(steps: AutomationStep[], ip: string, token?: string): Promise<{ success: boolean; error?: string }> {
+  async run(steps: AutomationStep[], ip: string, token?: string): Promise<{ success: boolean; error?: string; data?: unknown }> {
     if (!ip) return { success: false, error: "Lütfen ayarlardan PC IP adresini girin." };
+
+    let lastData: unknown = undefined;
 
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
@@ -61,6 +63,10 @@ export class ActionExecutor {
           };
         }
 
+        if (body && body.data != null) {
+          lastData = body.data;
+        }
+
       } catch (err: any) {
         console.error("Command delivery failed:", err);
 
@@ -83,7 +89,7 @@ export class ActionExecutor {
         await new Promise(r => setTimeout(r, 200));
       }
     }
-    return { success: true };
+    return lastData != null ? { success: true, data: lastData } : { success: true };
   }
 
   async ping(ip: string): Promise<boolean> {
