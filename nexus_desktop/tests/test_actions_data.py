@@ -23,3 +23,19 @@ class TestScreenshot:
         assert isinstance(result, str)
         assert result.startswith("data:image/jpeg;base64,")
         assert len(result) > 100
+
+
+class TestClipboard:
+    def test_set_calls_set_text(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr("actions.clipboard.set_text", lambda t: calls.append(t))
+        from actions.clipboard import ClipboardSetAction
+
+        assert ClipboardSetAction().execute("hello", CTX) is None
+        assert calls == ["hello"]
+
+    def test_get_returns_text_payload(self, monkeypatch):
+        monkeypatch.setattr("actions.clipboard.get_text", lambda: "board text")
+        from actions.clipboard import ClipboardGetAction
+
+        assert ClipboardGetAction().execute("", CTX) == {"text": "board text"}
