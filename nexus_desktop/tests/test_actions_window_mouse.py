@@ -37,3 +37,47 @@ class TestWindowManage:
         monkeypatch.setattr("actions.window_manage.list_windows", lambda: [(111, "Notepad", 100)])
         with pytest.raises(ValueError):
             self._action().execute("minimize photoshop", CTX)
+
+
+class TestMouseMove:
+    def test_percent_moves(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr("actions.mouse_move.pyautogui.size", lambda: (1920, 1080))
+        monkeypatch.setattr("actions.mouse_move.pyautogui.moveTo", lambda x, y: calls.append((x, y)))
+        from actions.mouse_move import MouseMoveAction
+        MouseMoveAction().execute("50%,50%", CTX)
+        assert calls == [(960, 540)]
+
+    def test_bad_format_raises(self, monkeypatch):
+        monkeypatch.setattr("actions.mouse_move.pyautogui.size", lambda: (1920, 1080))
+        from actions.mouse_move import MouseMoveAction
+        with pytest.raises(ValueError):
+            MouseMoveAction().execute("100", CTX)
+
+
+class TestMouseScroll:
+    def test_scrolls_int(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr("actions.mouse_move.pyautogui.scroll", lambda a: calls.append(a))
+        from actions.mouse_move import MouseScrollAction
+        MouseScrollAction().execute("-500", CTX)
+        assert calls == [-500]
+
+    def test_bad_amount_raises(self):
+        from actions.mouse_move import MouseScrollAction
+        with pytest.raises(ValueError):
+            MouseScrollAction().execute("abc", CTX)
+
+
+class TestTypeText:
+    def test_writes_text(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr("actions.type_text.pyautogui.write", lambda v, interval: calls.append(v))
+        from actions.type_text import TypeTextAction
+        TypeTextAction().execute("hello", CTX)
+        assert calls == ["hello"]
+
+    def test_empty_raises(self):
+        from actions.type_text import TypeTextAction
+        with pytest.raises(ValueError):
+            TypeTextAction().execute("  ", CTX)
