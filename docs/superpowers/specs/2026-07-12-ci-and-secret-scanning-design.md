@@ -60,7 +60,7 @@ Steps:
 ### Job: `secret-scan`
 
 Steps:
-1. `actions/checkout@v4` with `fetch-depth: 0` (gitleaks needs commit history for the range it scans)
+1. `actions/checkout@v4` with `fetch-depth: 0` — full history, the robust default that avoids "base commit not in shallow clone" errors on push events. The repo is small, so the checkout cost is negligible. **Future trim:** once confident, this can drop to the default shallow clone (`fetch-depth: 1`), since gitleaks-action derives the PR commit range from the GitHub API and rarely needs full history.
 2. `gitleaks/gitleaks-action@v2` with `GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}`
 
 Uses gitleaks' default behavior: on a pull request it scans the PR's commits; on a push it scans the pushed commits. This keeps the scan low-noise — it does **not** re-scan the entire (already-purged) history on every run, so previously-removed, already-rotated secrets don't produce recurring false failures. If a real secret appears in a new commit, the check fails and blocks the merge.
@@ -72,6 +72,7 @@ Uses gitleaks' default behavior: on a pull request it scans the PR's commits; on
 - **`npm ci` over `npm install`** in the CI job for reproducible installs from the lockfile.
 - **gitleaks default (incremental) scan**, not full-history, because history was already scrubbed of the leaked key; scanning new commits is the right ongoing guard.
 - **Public repo → free minutes**, so the Windows runner carries no cost concern.
+- **Node 20** in CI matches `deploy.yml` and is current LTS. **Future note:** Node 20 leaves Active LTS in October 2026 — plan to bump CI and `deploy.yml` to Node 22 around then. (Local dev on Node 24 works fine against the Node 20 target.)
 
 ## Error Handling / Failure Semantics
 
