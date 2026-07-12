@@ -163,6 +163,18 @@ This app accepts natural-language commands from a phone and lets an LLM turn the
 - **Model swap:** change `MODEL_NAME` in `nexus_desktop/services/ai_service.py` (currently `"gemini-2.5-flash"`); any Gemini model your key can access works. For another provider entirely, replace the `genai` calls inside `AiService._model`/handlers — the routes and the JSON step schema are provider-agnostic, so nothing else changes.
 - **Vision ("computer use"):** implement it as just another action module (e.g. `SMART_CLICK`): capture the screen (`pyautogui.screenshot`), send it to a vision-capable model with the goal text, parse the returned coordinates, then reuse MOUSE_CLICK's clamping to keep clicks on-screen. It's an extension point, not a rewrite: one new file.
 
+## Continuous Integration
+
+Every pull request runs `.github/workflows/ci.yml`, three checks that must pass:
+
+- **frontend** (Ubuntu, Node 20): `npx tsc --noEmit`, `npx vitest run`, `npm run build`.
+- **backend** (Windows, Python 3.12): `pip install -r nexus_desktop/requirements-dev.txt`, then `python -m pytest nexus_desktop/tests -q`. It runs on Windows because the agent imports Windows-only libraries.
+- **secret-scan** (Ubuntu): `gitleaks` fails the build if a credential is detected in the PR's commits.
+
+Run all of these locally before opening a PR (see "Dev setup").
+
+**Maintainer one-time settings** (not automated): enable **Settings → Code security → Secret scanning** and **Push protection**, and after CI is green once, add the three checks as **required status checks** in branch protection for `main`.
+
 ## Branch & PR conventions
 
 - One branch per body of work (`feat/...`, `fix/...`), PRs against `main`.
