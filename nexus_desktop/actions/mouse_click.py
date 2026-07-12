@@ -1,21 +1,10 @@
 import pyautogui
 
+from ._coords import parse_coord
 from .base import Action
 from .registry import register_action
 
 _BUTTONS = ('left', 'right', 'double')
-
-
-def _parse_coord(part, span):
-    part = part.strip()
-    try:
-        if part.endswith('%'):
-            pixel = int(span * float(part[:-1]) / 100)
-        else:
-            pixel = int(part)
-    except ValueError:
-        raise ValueError(f"Invalid coordinate: {part!r}")
-    return max(0, min(pixel, span - 1))
 
 
 @register_action("MOUSE_CLICK")
@@ -36,8 +25,8 @@ class MouseClickAction(Action):
         if button not in _BUTTONS:
             raise ValueError(f"Invalid mouse button: {button!r}")
         width, height = pyautogui.size()
-        x = _parse_coord(parts[0], width)
-        y = _parse_coord(parts[1], height)
+        x = parse_coord(parts[0], width)
+        y = parse_coord(parts[1], height)
         if button == 'double':
             pyautogui.doubleClick(x, y)
         else:

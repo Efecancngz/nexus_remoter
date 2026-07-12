@@ -28,8 +28,8 @@ class AutomationService(Service):
             action_cls = get_action(action_type)
             if action_cls is None:
                 raise ValueError(f"Unknown action type: {action_type!r}")
-            action_cls().execute(value, self.context)
-            self.bus.publish("ACTION_COMPLETED", {"status": "success", "id": data.get('id')})
+            result = action_cls().execute(value, self.context)
+            self.bus.publish("ACTION_COMPLETED", {"status": "success", "id": data.get('id'), "data": result})
         except Exception as e:
             logging.warning(f"[AutomationService] Error executing {action_type}: {e}")
             self.bus.publish("ACTION_FAILED", {"error": str(e), "id": data.get('id')})
