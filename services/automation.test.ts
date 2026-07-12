@@ -113,6 +113,42 @@ describe('ActionExecutor.run', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it('stops and names the step when the agent returns success:false', async () => {
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    fetchMock.mockResolvedValue(jsonResponse(200, { success: false, error: 'No running app matches' }));
+
+    const result = await executor.run(
+      [
+        step({ type: ActionType.CLOSE_APP, value: 'spotify', description: 'Spotify kapatılıyor' }),
+        step({ type: ActionType.KEYPRESS, value: 'a' }),
+      ],
+      '1.2.3.4'
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Spotify kapatılıyor');
+    expect(result.error).toContain('No running app matches');
+    expect(fetchMock).toHaveBeenCalledTimes(1); // second step never sent
+  });
+
+  it('continues to the next step when the agent returns success:true', async () => {
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    fetchMock.mockResolvedValue(jsonResponse(200, { success: true }));
+
+    const runPromise = executor.run(
+      [
+        step({ type: ActionType.KEYPRESS, value: 'a' }),
+        step({ type: ActionType.KEYPRESS, value: 'b' }),
+      ],
+      '1.2.3.4'
+    );
+    await vi.advanceTimersByTimeAsync(200); // cooldown after first step
+    const result = await runPromise;
+
+    expect(result).toEqual({ success: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('ActionExecutor.ping', () => {

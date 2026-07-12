@@ -18,7 +18,8 @@ export class ActionExecutor {
   async run(steps: AutomationStep[], ip: string, token?: string): Promise<{ success: boolean; error?: string }> {
     if (!ip) return { success: false, error: "Lütfen ayarlardan PC IP adresini girin." };
 
-    for (const step of steps) {
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
       console.log(`[EXECUTING] ${step.type}: ${step.value} (${step.description})`);
 
       // Local Actions (Processed in Phone/App)
@@ -52,6 +53,14 @@ export class ActionExecutor {
           throw new Error(errData.error || "PC Agent hatası");
         }
 
+        const body = await response.json().catch(() => ({} as any));
+        if (body && body.success === false) {
+          return {
+            success: false,
+            error: `"${step.description}" adımı başarısız: ${body.error ?? 'bilinmeyen hata'}`,
+          };
+        }
+
       } catch (err: any) {
         console.error("Command delivery failed:", err);
 
@@ -69,8 +78,8 @@ export class ActionExecutor {
       if (step.type === ActionType.LAUNCH_APP) {
         console.log("App launched, waiting for window focus...");
         await new Promise(r => setTimeout(r, 4000)); // 4 seconds grace period
-      } else {
-        // Small internal cooldown for other actions
+      } else if (i < steps.length - 1) {
+        // Small internal cooldown before the next action
         await new Promise(r => setTimeout(r, 200));
       }
     }
