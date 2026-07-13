@@ -75,7 +75,7 @@ describe('ConnectScreen', () => {
     await user.click(submitButton());
 
     await waitFor(() => {
-      expect(onPair).toHaveBeenCalledWith('192.168.1.5', '1234');
+      expect(onPair).toHaveBeenCalledWith('192.168.1.5', '1234', expect.any(String));
     });
   });
 

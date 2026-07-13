@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { Shield, Wifi, Loader2, ArrowRight, ExternalLink } from 'lucide-react';
 import { buildAgentUrl, sanitizeIp } from '../services/agentUrl';
+import { guessDeviceName } from '../services/deviceName';
 import HudPanel from './hud/HudPanel';
 
 interface ConnectScreenProps {
-  onPair: (ip: string, pin: string) => Promise<{ success: boolean; error?: string }>;
+  onPair: (ip: string, pin: string, deviceName: string) => Promise<{ success: boolean; error?: string }>;
   initialIp?: string;
   initialPin?: string;
 }
@@ -12,6 +13,7 @@ interface ConnectScreenProps {
 export default function ConnectScreen({ onPair, initialIp = '', initialPin = '' }: ConnectScreenProps) {
   const [ip, setIp] = useState(initialIp);
   const [pin, setPin] = useState(initialPin);
+  const [deviceName, setDeviceName] = useState(() => guessDeviceName());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,7 +35,7 @@ export default function ConnectScreen({ onPair, initialIp = '', initialPin = '' 
     setLoading(true);
     setError(null);
 
-    const result = await onPair(ip, pin);
+    const result = await onPair(ip, pin, deviceName);
     setLoading(false);
 
     if (!result.success) {
@@ -124,6 +126,22 @@ export default function ConnectScreen({ onPair, initialIp = '', initialPin = '' 
                 className="w-full bg-hud-bg/80 border border-hud-dim rounded-sm py-4 text-center font-data font-black text-2xl tracking-[0.5em] text-hud-cyan placeholder:text-slate-700 placeholder:tracking-normal placeholder:text-sm focus:border-hud-cyan/60 focus:ring-1 focus:ring-hud-cyan/20 outline-none transition-all"
                 value={pin}
                 onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ''))}
+                disabled={loading}
+              />
+            </div>
+
+            {/* Device Name Input */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-display font-black text-hud-cyan/70 uppercase tracking-wider block px-1">
+                CİHAZ ADI
+              </label>
+              <input
+                type="text"
+                maxLength={40}
+                placeholder="Örn: iPhone"
+                className="w-full bg-hud-bg/80 border border-hud-dim rounded-sm py-3 px-4 text-slate-100 font-data text-sm placeholder:text-slate-600 focus:border-hud-cyan/60 focus:ring-1 focus:ring-hud-cyan/20 outline-none transition-all"
+                value={deviceName}
+                onChange={(e) => setDeviceName(e.target.value)}
                 disabled={loading}
               />
             </div>

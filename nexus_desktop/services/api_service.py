@@ -104,11 +104,11 @@ class ApiService(Service):
 
     def pair(self):
         """Verify the pairing PIN and issue a session token."""
-        data = request.json
+        data = request.json or {}
         incoming_pin = data.get('pin')
 
         if self.security.validate_pin(incoming_pin):
-            token = self.security.issue_token()
+            token = self.security.issue_token(data.get('device_name', ''))
             return jsonify({"success": True, "message": "Paired successfully", "token": token}), 200
         else:
             return jsonify({"success": False, "message": "Invalid PIN"}), 401

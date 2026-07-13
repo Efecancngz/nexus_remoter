@@ -26,16 +26,16 @@ class GuiService(Service):
             
             self.root = tk.Tk()
             self.root.title("Nexus Agent")
-            self.root.geometry("300x220")
+            self.root.geometry("300x270")
             self.root.configure(bg="#f0f0f0")
             self.root.resizable(False, False)
-            
+
             # Center
             screen_width = self.root.winfo_screenwidth()
             screen_height = self.root.winfo_screenheight()
             x = (screen_width // 2) - (300 // 2)
-            y = (screen_height // 2) - (220 // 2)
-            self.root.geometry(f"300x220+{x}+{y}")
+            y = (screen_height // 2) - (270 // 2)
+            self.root.geometry(f"300x270+{x}+{y}")
             
             style = ttk.Style()
             style.theme_use('clam')
@@ -71,6 +71,13 @@ class GuiService(Service):
             self.lbl_ram = tk.Label(frame_stats, text="RAM: --%", font=("Consolas", 10), bg="white", fg="#333", width=12, anchor="w")
             self.lbl_ram.pack()
 
+            self.btn_devices = tk.Button(
+                self.root, text="Cihazlar", font=("Arial", 9, "bold"),
+                bg="#ffffff", fg="#333333", relief="solid", bd=1,
+                command=self._open_devices_window,
+            )
+            self.btn_devices.pack(pady=(0, 10))
+
             self.root.protocol("WM_DELETE_WINDOW", self.hide_window)
             
             self.update_stats()
@@ -88,12 +95,70 @@ class GuiService(Service):
             ram = psutil.virtual_memory().percent
             self.lbl_cpu.config(text=f"CPU: {cpu}%")
             self.lbl_ram.config(text=f"RAM: {ram}%")
+
+            if hasattr(self, 'btn_devices'):
+                self.btn_devices.config(text=f"Cihazlar ({len(self.security.list_devices())})")
         except Exception as e:
             logging.warning(f"Failed to update GUI stats: {e}")
 
 
         if hasattr(self, 'root') and self.root:
             self.root.after(1000, self.update_stats)
+
+    def _open_devices_window(self):
+        from utils.timefmt import format_relative
+        if getattr(self, "_dev_win", None) and tk.Toplevel.winfo_exists(self._dev_win):
+            self._dev_win.lift()
+            return
+        win = tk.Toplevel(self.root)
+        self._dev_win = win
+        win.title("Eşleşmiş Cihazlar")
+        win.geometry("340x300")
+        win.configure(bg="#f0f0f0")
+
+        self._dev_list_frame = tk.Frame(win, bg="#f0f0f0")
+        self._dev_list_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        tk.Button(
+            win, text="Tümünü Kaldır", font=("Arial", 9, "bold"),
+            bg="#ff4444", fg="white", relief="flat",
+            command=self._revoke_all_devices,
+        ).pack(pady=(0, 10))
+
+        self._render_devices()
+
+    def _render_devices(self):
+        from utils.timefmt import format_relative
+        frame = getattr(self, "_dev_list_frame", None)
+        if not frame or not tk.Frame.winfo_exists(frame):
+            return
+        for child in frame.winfo_children():
+            child.destroy()
+        devices = self.security.list_devices()
+        if not devices:
+            tk.Label(frame, text="Eşleşmiş cihaz yok", bg="#f0f0f0",
+                     fg="#666666", font=("Arial", 10)).pack(pady=20)
+            return
+        for dev in devices:
+            row = tk.Frame(frame, bg="#ffffff", bd=1, relief="solid")
+            row.pack(fill="x", pady=3)
+            info = f"{dev['device_name']}\n{format_relative(dev['last_seen'])}"
+            tk.Label(row, text=info, bg="#ffffff", fg="#333333",
+                     justify="left", anchor="w", font=("Arial", 9)).pack(
+                side="left", padx=8, pady=4)
+            tk.Button(
+                row, text="Kaldır", font=("Arial", 8, "bold"),
+                bg="#ff4444", fg="white", relief="flat",
+                command=lambda d=dev["id"]: self._revoke_device(d),
+            ).pack(side="right", padx=6, pady=4)
+
+    def _revoke_device(self, device_id):
+        self.security.revoke(device_id)
+        self._render_devices()
+
+    def _revoke_all_devices(self):
+        self.security.revoke_all_tokens()
+        self._render_devices()
 
     def show_window(self, event=None):
         logging.info("Show Window Triggered")
