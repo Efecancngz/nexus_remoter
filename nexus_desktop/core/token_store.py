@@ -23,7 +23,7 @@ class TokenStore:
             for rec in data.get("tokens", []):
                 if rec.get("expires_at", 0) > now and "id" in rec:
                     self._records[rec["id"]] = rec
-        except (json.JSONDecodeError, OSError, TypeError, ValueError):
+        except (json.JSONDecodeError, OSError, TypeError, ValueError, AttributeError):
             # A corrupt or unreadable store must not crash startup.
             self._records = {}
 
@@ -48,7 +48,9 @@ class TokenStore:
     def flush(self):
         if not self.path:
             return
-        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        dirname = os.path.dirname(self.path)
+        if dirname:
+            os.makedirs(dirname, exist_ok=True)
         tmp = self.path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump({"tokens": list(self._records.values())}, f)

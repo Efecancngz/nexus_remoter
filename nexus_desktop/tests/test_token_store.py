@@ -87,3 +87,36 @@ def test_raw_token_never_written(tmp_path):
     assert "sha256hexhash" in written  # the hash is persisted
     # sanity: the file is valid JSON with a tokens list
     assert isinstance(json.loads(written)["tokens"], list)
+
+
+def test_wrong_shape_json_yields_empty_store(tmp_path):
+    """Wrong-shaped JSON (not a dict, or tokens not list of dicts) yields empty store."""
+    # Test case 1: JSON is an empty list
+    p1 = tmp_path / "tokens1.json"
+    p1.write_text("[]", encoding="utf-8")
+    store1 = TokenStore(str(p1))
+    assert store1.all() == []
+
+    # Test case 2: JSON is valid dict but tokens is list of non-dicts
+    p2 = tmp_path / "tokens2.json"
+    p2.write_text('{"tokens": [1, 2]}', encoding="utf-8")
+    store2 = TokenStore(str(p2))
+    assert store2.all() == []
+
+    # Test case 3: JSON is null
+    p3 = tmp_path / "tokens3.json"
+    p3.write_text("null", encoding="utf-8")
+    store3 = TokenStore(str(p3))
+    assert store3.all() == []
+
+
+def test_flush_with_bare_filename(tmp_path, monkeypatch):
+    """Flushing with a bare filename (no directory component) must not crash."""
+    monkeypatch.chdir(tmp_path)
+    store = TokenStore("tokens.json")
+    store.add(_rec(id="a", h="hash-a"))
+    store.flush()  # must not raise FileNotFoundError
+
+    # Verify it reloaded correctly
+    reloaded = TokenStore("tokens.json")
+    assert reloaded.get_by_hash("hash-a")["id"] == "a"
