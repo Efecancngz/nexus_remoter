@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { executor } from '../services/automation';
 import { sanitizeIp, buildAgentUrl } from '../services/agentUrl';
+import { guessDeviceName } from '../services/deviceName';
 import { SystemStats } from '../types';
 
 interface ConnectionState {
@@ -31,7 +32,7 @@ export function useConnection() {
     }
   }, []);
 
-  const pairDevice = async (ip: string, pin: string): Promise<{ success: boolean; error?: string }> => {
+  const pairDevice = async (ip: string, pin: string, deviceName?: string): Promise<{ success: boolean; error?: string }> => {
     const cleanIp = sanitizeIp(ip);
     try {
       const controller = new AbortController();
@@ -41,7 +42,7 @@ export function useConnection() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ pin }),
+        body: JSON.stringify({ pin, device_name: (deviceName && deviceName.trim()) || guessDeviceName() }),
         signal: controller.signal
       });
       clearTimeout(timeoutId);

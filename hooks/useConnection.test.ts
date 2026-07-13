@@ -60,7 +60,10 @@ describe('useConnection', () => {
 
       const [url, options] = fetchMock.mock.calls[0];
       expect(url).toBe('https://192.168.1.5:8080/pair');
-      expect(JSON.parse(String(options?.body))).toEqual({ pin: '1234' });
+      const body = JSON.parse(String(options?.body));
+      expect(body.pin).toBe('1234');
+      expect(typeof body.device_name).toBe('string');
+      expect(body.device_name.length).toBeGreaterThan(0);
 
       unmount();
     });

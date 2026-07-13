@@ -142,8 +142,8 @@ export default function App() {
   }, [state]);
 
   // Handle pairing from ConnectScreen
-  const handlePair = async (ip: string, pin: string) => {
-    const res = await connection.pairDevice(ip, pin);
+  const handlePair = async (ip: string, pin: string, deviceName: string) => {
+    const res = await connection.pairDevice(ip, pin, deviceName);
     if (res.success) {
       addToast('🎉 Bilgisayar başarıyla eşleştirildi!', 'success');
     }
