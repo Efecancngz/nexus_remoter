@@ -90,3 +90,91 @@ def test_revoke_all_tokens_invalidates_sessions():
 
     sec.revoke_all_tokens()
     assert sec.validate_token(token) is False
+
+
+import core.security_manager as sm_mod
+from core.security_manager import _sanitize_name
+
+
+def test_issue_token_stores_sanitized_device_name():
+    sec = SecurityManager()
+    tok = sec.issue_token("  Efe's\tiPhone  ")
+    devices = sec.list_devices()
+    assert len(devices) == 1
+    assert devices[0]["device_name"] == "Efe's iPhone"
+    assert sec.validate_token(tok) is True
+
+
+def test_issue_token_default_device_name():
+    sec = SecurityManager()
+    sec.issue_token("")
+    assert sec.list_devices()[0]["device_name"] == "Bilinmeyen Cihaz"
+
+
+def test_validate_slides_expiry_and_last_seen(monkeypatch):
+    sec = SecurityManager()
+    t0 = 1_000_000.0
+    monkeypatch.setattr(sm_mod.time, "time", lambda: t0)
+    tok = sec.issue_token("iPhone")
+    first_expiry = sec.list_devices()[0]["expires_at"]
+
+    monkeypatch.setattr(sm_mod.time, "time", lambda: t0 + 10_000)
+    assert sec.validate_token(tok) is True
+    slid = sec.list_devices()[0]
+    assert slid["expires_at"] > first_expiry
+    assert slid["last_seen"] == t0 + 10_000
+
+
+def test_expired_token_rejected_and_removed(monkeypatch):
+    sec = SecurityManager()
+    t0 = 1_000_000.0
+    monkeypatch.setattr(sm_mod.time, "time", lambda: t0)
+    tok = sec.issue_token("iPhone")
+
+    monkeypatch.setattr(sm_mod.time, "time", lambda: t0 + sm_mod.TOKEN_TTL_SECONDS + 1)
+    assert sec.validate_token(tok) is False
+    assert sec.list_devices() == []
+
+
+def test_token_survives_restart(tmp_path):
+    p = str(tmp_path / "tokens.json")
+    sec = SecurityManager(store_path=p)
+    tok = sec.issue_token("iPhone")
+
+    sec2 = SecurityManager(store_path=p)  # simulate agent restart
+    assert sec2.validate_token(tok) is True
+
+
+def test_list_devices_exposes_no_secrets():
+    sec = SecurityManager()
+    sec.issue_token("iPhone")
+    d = sec.list_devices()[0]
+    assert "hash" not in d
+    assert set(d.keys()) == {"id", "device_name", "last_seen", "expires_at"}
+
+
+def test_flush_is_throttled_on_validate(tmp_path, monkeypatch):
+    p = str(tmp_path / "tokens.json")
+    sec = SecurityManager(store_path=p)
+    tok = sec.issue_token("iPhone")  # flush #1
+
+    calls = []
+    orig_flush = sec._store.flush
+    monkeypatch.setattr(sec._store, "flush", lambda: calls.append(1) or orig_flush())
+
+    t = [2_000_000.0]
+    monkeypatch.setattr(sm_mod.time, "time", lambda: t[0])
+    sec._last_flush = t[0]
+    sec.validate_token(tok)          # within interval -> no flush
+    assert calls == []
+
+    t[0] += sm_mod.PERSIST_MIN_INTERVAL + 1
+    sec.validate_token(tok)          # interval elapsed -> flush
+    assert calls == [1]
+
+
+def test_sanitize_name_edge_cases():
+    assert _sanitize_name("") == "Bilinmeyen Cihaz"
+    assert _sanitize_name(None) == "Bilinmeyen Cihaz"
+    assert _sanitize_name("a\x00b\x1fc") == "abc"
+    assert _sanitize_name("x" * 100) == "x" * 40
