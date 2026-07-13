@@ -178,3 +178,32 @@ def test_sanitize_name_edge_cases():
     assert _sanitize_name(None) == "Bilinmeyen Cihaz"
     assert _sanitize_name("a\x00b\x1fc") == "abc"
     assert _sanitize_name("x" * 100) == "x" * 40
+
+
+def test_revoke_single_device_invalidates_only_that_token():
+    sec = SecurityManager()
+    tok_a = sec.issue_token("iPhone")
+    tok_b = sec.issue_token("Android")
+
+    dev_a = next(d for d in sec.list_devices() if d["device_name"] == "iPhone")
+    assert sec.revoke(dev_a["id"]) is True
+
+    assert sec.validate_token(tok_a) is False
+    assert sec.validate_token(tok_b) is True
+    assert [d["device_name"] for d in sec.list_devices()] == ["Android"]
+
+
+def test_revoke_unknown_id_returns_false():
+    sec = SecurityManager()
+    sec.issue_token("iPhone")
+    assert sec.revoke("no-such-id") is False
+
+
+def test_list_devices_sorted_by_last_seen_desc(monkeypatch):
+    sec = SecurityManager()
+    t = [1_000.0]
+    monkeypatch.setattr(sm_mod.time, "time", lambda: t[0])
+    sec.issue_token("Older")
+    t[0] = 2_000.0
+    sec.issue_token("Newer")
+    assert [d["device_name"] for d in sec.list_devices()] == ["Newer", "Older"]
