@@ -79,6 +79,8 @@ def main():
         print("\nStopping services...")
         for service in services:
             service.stop()
+        # Persist any pending token slides before exit (graceful-shutdown flush).
+        sec_manager.flush()
         print("Goodbye!")
 
 if __name__ == "__main__":
