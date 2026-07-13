@@ -96,3 +96,44 @@ def test_ip_host_header_allowed(client):
         headers={'Host': '192.168.1.50:8080'},
     )
     assert res.status_code == 200
+
+
+def test_pair_persists_device_name(client):
+    app_client, sec = client
+    res = app_client.post('/pair', json={'pin': sec.pin, 'device_name': "Efe's iPhone"})
+    assert res.status_code == 200
+    devices = sec.list_devices()
+    assert devices[0]['device_name'] == "Efe's iPhone"
+
+
+def test_pair_without_device_name_uses_default(client):
+    app_client, sec = client
+    res = app_client.post('/pair', json={'pin': sec.pin})
+    assert res.status_code == 200
+    assert sec.list_devices()[0]['device_name'] == 'Bilinmeyen Cihaz'
+
+
+def test_token_survives_agent_restart(tmp_path, monkeypatch):
+    from core.event_bus import EventBus
+    from core.security_manager import SecurityManager
+    from services.api_service import ApiService
+
+    monkeypatch.setattr(sys, "argv", [str(tmp_path / "NexusAgent.exe")])
+    store = str(tmp_path / "tokens.json")
+
+    sec1 = SecurityManager(store_path=store)
+    svc1 = ApiService("API", EventBus(), sec1, start_server=False)
+    svc1.on_start()
+    svc1.app.testing = True
+    c1 = svc1.app.test_client()
+    token = c1.post('/pair', json={'pin': sec1.pin}).get_json()['token']
+
+    # Simulate a restart: brand-new manager + service over the same store file.
+    sec2 = SecurityManager(store_path=store)
+    svc2 = ApiService("API", EventBus(), sec2, start_server=False)
+    svc2.on_start()
+    svc2.app.testing = True
+    c2 = svc2.app.test_client()
+
+    res = c2.get('/verify', headers={'X-Nexus-Token': token})
+    assert res.status_code == 200

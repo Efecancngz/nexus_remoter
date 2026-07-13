@@ -47,7 +47,10 @@ def main():
     # 1. Initialize Core
     bus = EventBus()
     from core.security_manager import SecurityManager
-    sec_manager = SecurityManager()
+    token_store_path = os.path.join(
+        os.path.dirname(os.path.abspath(sys.argv[0])), "data", "tokens.json"
+    )
+    sec_manager = SecurityManager(store_path=token_store_path)
     
     # 2. Initialize Services
     media_service = MediaService("Media", bus)
