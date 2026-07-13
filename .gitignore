@@ -49,3 +49,6 @@ desktop.ini
 
 # AI & Gemini specific
 .gemini/
+
+# Persisted session tokens (contains hashes + device metadata)
+nexus_desktop/data/tokens.json
