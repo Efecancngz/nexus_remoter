@@ -94,6 +94,38 @@ def _clamp_pct(value):
     return max(0.0, min(float(value), 100.0))
 
 
+_COORD_TYPES = {"MOUSE_CLICK"}
+
+_NEXT_ACTION_INSTRUCTION = (
+    "Sen bir Windows bilgisayarını kontrol eden bir otomasyon ajanısın.\n"
+    "Sana bir hedef, ekranın güncel görüntüsü ve şimdiye kadar yaptığın adımlar verilecek.\n"
+    "Görevini tamamlamak için atılacak TEK bir sonraki adımı seç.\n"
+    "Hedef zaten tamamlandıysa done=true ve summary (kısa Türkçe özet) döndür.\n"
+    "Aksi halde done=false döndür ve şunları ver:\n"
+    "- thought: ne yapacağını açıklayan kısa bir Türkçe cümle\n"
+    "- type: aşağıdaki listeden bir eylem tipi\n"
+    "- MOUSE_CLICK için: x ve y (0-1000 aralığında normalize edilmiş tam sayı; "
+    "x soldan sağa, y yukarıdan aşağıya). value boş bırakılabilir.\n"
+    "- Diğer tipler için: value (örn. LAUNCH_APP için 'chrome', TYPE_TEXT için yazılacak metin).\n"
+    "Her seferinde yalnızca bir adım döndür.\n\n"
+    "Kullanılabilir Tipler: " + ", ".join(_ACTION_TYPES)
+)
+
+_NEXT_ACTION_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "done": {"type": "BOOLEAN"},
+        "thought": {"type": "STRING"},
+        "type": {"type": "STRING", "enum": _ACTION_TYPES},
+        "value": {"type": "STRING"},
+        "x": {"type": "INTEGER"},
+        "y": {"type": "INTEGER"},
+        "summary": {"type": "STRING"},
+    },
+    "required": ["done"],
+}
+
+
 class AiService:
     """Holds Gemini configuration and the /ai route handlers."""
 
@@ -113,6 +145,7 @@ class AiService:
         app.add_url_rule('/ai/audio', 'ai_audio', self.audio, methods=['POST'])
         app.add_url_rule('/ai/schedule', 'ai_schedule', self.schedule, methods=['POST'])
         app.add_url_rule('/ai/locate', 'ai_locate', self.locate, methods=['POST'])
+        app.add_url_rule('/ai/next-action', 'ai_next_action', self.next_action, methods=['POST'])
 
     def _authorized(self):
         return self.security.validate_token(request.headers.get('X-Nexus-Token'))
@@ -214,4 +247,51 @@ class AiService:
             return jsonify({"success": True, "plan": json.loads(resp.text)}), 200
         except Exception as e:
             logging.error("[AI] schedule error: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 502
+
+    def next_action(self):
+        guard = self._guard()
+        if guard:
+            return guard
+        data = request.json or {}
+        goal = data.get('goal', '')
+        if not goal or not goal.strip():
+            return jsonify({"success": False, "error": "Missing goal"}), 400
+        history = data.get('history') or []
+        history_lines = "\n".join(
+            f"- {h.get('type', '')}: {h.get('description', '')}" for h in history
+        ) or "(henüz yok)"
+        prompt = f"Hedef: {goal}\nŞimdiye kadar yapılanlar:\n{history_lines}"
+        try:
+            jpeg = capture_jpeg_bytes()
+            model = self._model(_NEXT_ACTION_INSTRUCTION, _NEXT_ACTION_SCHEMA)
+            resp = model.generate_content([
+                {"mime_type": "image/jpeg", "data": jpeg},
+                prompt,
+            ])
+            result = json.loads(resp.text)
+            if result.get("done"):
+                return jsonify({
+                    "success": True,
+                    "done": True,
+                    "summary": result.get("summary", ""),
+                }), 200
+            thought = result.get("thought", "")
+            action_type = result.get("type", "")
+            if action_type in _COORD_TYPES:
+                value = f"{_clamp_pct(result.get('x', 0) / 10.0)}%,{_clamp_pct(result.get('y', 0) / 10.0)}%"
+            else:
+                value = result.get("value", "")
+            return jsonify({
+                "success": True,
+                "done": False,
+                "thought": thought,
+                "action": {
+                    "type": action_type,
+                    "value": value,
+                    "description": thought,
+                },
+            }), 200
+        except Exception as e:
+            logging.error("[AI] next_action error: %s", e)
             return jsonify({"success": False, "error": str(e)}), 502
