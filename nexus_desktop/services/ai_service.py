@@ -18,6 +18,7 @@ except ImportError:
     logging.warning("[AI] google-generativeai not installed; /ai routes disabled")
 
 from actions import all_actions
+from utils.screen_capture import capture_jpeg_bytes, data_url_from_jpeg_bytes
 
 MODEL_NAME = "gemini-2.5-flash"
 
@@ -70,6 +71,29 @@ _STEP_SCHEMA = {
 }
 
 
+_LOCATE_INSTRUCTION = (
+    "Sen bir ekran analiz asistanısın. Sana bir ekran görüntüsü ve tıklanacak "
+    "öğenin açıklaması verilecek. Öğenin merkez noktasını bul.\n"
+    "Koordinatları 0-1000 aralığında normalize edilmiş tam sayı olarak döndür: "
+    "x yatay eksen (soldan sağa), y dikey eksen (yukarıdan aşağıya).\n"
+    "Öğeyi bulursan found=true ve x, y ver. Bulamazsan found=false döndür."
+)
+
+_LOCATE_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "found": {"type": "BOOLEAN"},
+        "x": {"type": "INTEGER"},
+        "y": {"type": "INTEGER"},
+    },
+    "required": ["found", "x", "y"],
+}
+
+
+def _clamp_pct(value):
+    return max(0.0, min(float(value), 100.0))
+
+
 class AiService:
     """Holds Gemini configuration and the /ai route handlers."""
 
@@ -88,6 +112,7 @@ class AiService:
         app.add_url_rule('/ai/macro', 'ai_macro', self.macro, methods=['POST'])
         app.add_url_rule('/ai/audio', 'ai_audio', self.audio, methods=['POST'])
         app.add_url_rule('/ai/schedule', 'ai_schedule', self.schedule, methods=['POST'])
+        app.add_url_rule('/ai/locate', 'ai_locate', self.locate, methods=['POST'])
 
     def _authorized(self):
         return self.security.validate_token(request.headers.get('X-Nexus-Token'))
@@ -146,6 +171,34 @@ class AiService:
             return jsonify({"success": True, "steps": json.loads(resp.text)}), 200
         except Exception as e:
             logging.error("[AI] audio error: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 502
+
+    def locate(self):
+        guard = self._guard()
+        if guard:
+            return guard
+        description = (request.json or {}).get('description', '')
+        if not description or not description.strip():
+            return jsonify({"success": False, "error": "Missing description"}), 400
+        try:
+            jpeg = capture_jpeg_bytes()
+            model = self._model(_LOCATE_INSTRUCTION, _LOCATE_SCHEMA)
+            resp = model.generate_content([
+                {"mime_type": "image/jpeg", "data": jpeg},
+                f"Tıklanacak öğe: {description}",
+            ])
+            result = json.loads(resp.text)
+            if not result.get("found"):
+                return jsonify({"success": True, "found": False}), 200
+            return jsonify({
+                "success": True,
+                "found": True,
+                "x_pct": _clamp_pct(result["x"] / 10.0),
+                "y_pct": _clamp_pct(result["y"] / 10.0),
+                "image": data_url_from_jpeg_bytes(jpeg),
+            }), 200
+        except Exception as e:
+            logging.error("[AI] locate error: %s", e)
             return jsonify({"success": False, "error": str(e)}), 502
 
     def schedule(self):

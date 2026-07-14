@@ -273,3 +273,109 @@ def test_macro_malformed_json_response_returns_502(monkeypatch):
         headers={'X-Nexus-Token': token},
     )
     assert res.status_code == 502
+
+
+# --- /ai/locate (vision) ---
+
+def _patch_capture(monkeypatch):
+    """Avoid real screen grabs: locate captures via screen_capture.capture_jpeg_bytes."""
+    monkeypatch.setattr(
+        "services.ai_service.capture_jpeg_bytes",
+        lambda *a, **k: b"\xff\xd8fakejpeg",
+    )
+
+
+def test_locate_without_token_rejected(monkeypatch):
+    client, _, _ = _build_client(monkeypatch)
+    res = client.post('/ai/locate', json={'description': 'Kaydet butonu'})
+    assert res.status_code == 401
+
+
+def test_locate_disabled_when_api_key_missing(monkeypatch):
+    client, security, svc = _build_client(monkeypatch, api_key=None)
+    token = _token(security)
+    res = client.post(
+        '/ai/locate',
+        json={'description': 'Kaydet butonu'},
+        headers={'X-Nexus-Token': token},
+    )
+    assert res.status_code == 503
+
+
+def test_locate_missing_description_rejected(monkeypatch):
+    client, security, _ = _build_client(monkeypatch)
+    token = _token(security)
+    res = client.post('/ai/locate', json={}, headers={'X-Nexus-Token': token})
+    assert res.status_code == 400
+
+    res2 = client.post('/ai/locate', json={'description': '   '}, headers={'X-Nexus-Token': token})
+    assert res2.status_code == 400
+
+
+def test_locate_found_maps_coords_to_percent(monkeypatch):
+    client, security, _ = _build_client(monkeypatch)
+    _patch_capture(monkeypatch)
+    token = _token(security)
+    FakeGenerativeModel.result_text = json.dumps({"found": True, "x": 500, "y": 250})
+    res = client.post(
+        '/ai/locate',
+        json={'description': 'Kaydet butonu'},
+        headers={'X-Nexus-Token': token},
+    )
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body['success'] is True
+    assert body['found'] is True
+    assert body['x_pct'] == 50.0
+    assert body['y_pct'] == 25.0
+    assert body['image'].startswith('data:image/jpeg;base64,')
+    # The screenshot bytes must be sent to Gemini as an image part.
+    contents = FakeGenerativeModel.last_instance.last_contents
+    assert contents[0]['mime_type'] == 'image/jpeg'
+    assert contents[0]['data'] == b"\xff\xd8fakejpeg"
+    assert 'response_schema' in FakeGenerativeModel.last_instance.generation_config
+
+
+def test_locate_clamps_out_of_range_coords(monkeypatch):
+    client, security, _ = _build_client(monkeypatch)
+    _patch_capture(monkeypatch)
+    token = _token(security)
+    FakeGenerativeModel.result_text = json.dumps({"found": True, "x": 1200, "y": -30})
+    res = client.post(
+        '/ai/locate',
+        json={'description': 'x'},
+        headers={'X-Nexus-Token': token},
+    )
+    body = res.get_json()
+    assert body['x_pct'] == 100.0
+    assert body['y_pct'] == 0.0
+
+
+def test_locate_not_found_returns_found_false(monkeypatch):
+    client, security, _ = _build_client(monkeypatch)
+    _patch_capture(monkeypatch)
+    token = _token(security)
+    FakeGenerativeModel.result_text = json.dumps({"found": False, "x": 0, "y": 0})
+    res = client.post(
+        '/ai/locate',
+        json={'description': 'yok'},
+        headers={'X-Nexus-Token': token},
+    )
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body['success'] is True
+    assert body['found'] is False
+    assert 'image' not in body
+
+
+def test_locate_upstream_exception_returns_502(monkeypatch):
+    client, security, _ = _build_client(monkeypatch)
+    _patch_capture(monkeypatch)
+    token = _token(security)
+    FakeGenerativeModel.should_raise = RuntimeError("upstream boom")
+    res = client.post(
+        '/ai/locate',
+        json={'description': 'Kaydet butonu'},
+        headers={'X-Nexus-Token': token},
+    )
+    assert res.status_code == 502
