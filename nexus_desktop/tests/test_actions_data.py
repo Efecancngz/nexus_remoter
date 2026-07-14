@@ -16,7 +16,7 @@ class TestScreenshot:
         from actions.screenshot import ScreenshotAction
 
         monkeypatch.setattr(
-            "actions.screenshot.pyautogui.screenshot",
+            "utils.screen_capture.pyautogui.screenshot",
             lambda: Image.new("RGB", (2000, 1000), "white"),
         )
         result = ScreenshotAction().execute("", CTX)
