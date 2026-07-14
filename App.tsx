@@ -18,6 +18,7 @@ import ToastContainer from './components/ToastContainer';
 import ConnectScreen from './components/ConnectScreen';
 import VoiceButton from './components/VoiceButton';
 import CommandPreviewModal from './components/CommandPreviewModal';
+import SmartClickPanel from './components/SmartClickPanel';
 import HudPanel from './components/hud/HudPanel';
 import { ScreenshotModal } from './components/ScreenshotModal';
 
@@ -489,6 +490,12 @@ export default function App() {
                   )}
                 </button>
               </HudPanel>
+
+              <SmartClickPanel
+                ip={connection.pcIpAddress}
+                token={connection.accessToken}
+                onToast={addToast}
+              />
             </div>
           )}
 
