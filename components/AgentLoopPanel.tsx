@@ -32,23 +32,25 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<LogRow[]>([]);
   const stopRef = useRef(false);
+  const runIdRef = useRef(0);
 
   const handleStart = async () => {
     const value = goal.trim();
     if (!value || running) return;
     stopRef.current = false;
+    const myRunId = ++runIdRef.current;
     setRunning(true);
     setLog([]);
     const history: { type: string; description: string }[] = [];
     try {
       for (let step = 0; step < MAX_STEPS; step++) {
-        if (stopRef.current) break;
+        if (stopRef.current || runIdRef.current !== myRunId) break;
         const res = await nextAction(ip, token, value, history);
         if (res.done) {
           onToast(res.summary || 'Görev tamamlandı', 'success');
           break;
         }
-        if (stopRef.current) break;
+        if (stopRef.current || runIdRef.current !== myRunId) break;
         const action = res.action!;
         const label = `${action.type}: ${action.value}`;
         setLog(prev => [...prev, { thought: res.thought || '', label, status: 'running' }]);
@@ -58,6 +60,7 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
           onToast(exec.error || 'Adım başarısız', 'error');
           break;
         }
+        if (runIdRef.current !== myRunId) break;
         setLog(prev => markLast(prev, 'done'));
         history.push({ type: action.type, description: action.description });
         if (step === MAX_STEPS - 1) {
