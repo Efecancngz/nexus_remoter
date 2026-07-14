@@ -65,3 +65,17 @@ export const parseSchedulerPrompt = async (
     return null;
   }
 };
+
+export const locate = async (
+  ip: string,
+  token: string,
+  description: string
+): Promise<{ found: boolean; x_pct?: number; y_pct?: number; image?: string }> => {
+  const data = await callAgent('/ai/locate', ip, token, { description });
+  return {
+    found: !!data.found,
+    x_pct: data.x_pct,
+    y_pct: data.y_pct,
+    image: data.image,
+  };
+};

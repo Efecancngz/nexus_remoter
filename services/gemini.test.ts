@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { generateMacro, generateMacroFromAudio, parseSchedulerPrompt } from './gemini';
+import { generateMacro, generateMacroFromAudio, parseSchedulerPrompt, locate } from './gemini';
 
 function jsonResponse(status: number, body: unknown) {
   return {
@@ -167,6 +167,51 @@ describe('gemini service (agent /ai/* proxy client)', () => {
       const result = await parseSchedulerPrompt('x', '1.2.3.4', 'tok');
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe('locate', () => {
+    it('posts the description to /ai/locate and returns the mapped point', async () => {
+      const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+      fetchMock.mockResolvedValue(
+        jsonResponse(200, {
+          success: true,
+          found: true,
+          x_pct: 42.3,
+          y_pct: 71,
+          image: 'data:image/jpeg;base64,abc',
+        })
+      );
+
+      const result = await locate('192.168.1.5', 'tok-123', 'Kaydet butonu');
+
+      const [url, options] = fetchMock.mock.calls[0];
+      expect(url).toBe('https://192.168.1.5:8080/ai/locate');
+      expect(options.headers['X-Nexus-Token']).toBe('tok-123');
+      expect(JSON.parse(options.body)).toEqual({ description: 'Kaydet butonu' });
+      expect(result).toEqual({
+        found: true,
+        x_pct: 42.3,
+        y_pct: 71,
+        image: 'data:image/jpeg;base64,abc',
+      });
+    });
+
+    it('returns found:false when the element is not located', async () => {
+      const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+      fetchMock.mockResolvedValue(jsonResponse(200, { success: true, found: false }));
+
+      const result = await locate('1.2.3.4', 'tok', 'yok');
+
+      expect(result.found).toBe(false);
+      expect(result.image).toBeUndefined();
+    });
+
+    it('throws AUTH_REQUIRED on a 401 response', async () => {
+      const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+      fetchMock.mockResolvedValue(jsonResponse(401, {}));
+
+      await expect(locate('1.2.3.4', 'bad-tok', 'x')).rejects.toThrow('AUTH_REQUIRED');
     });
   });
 });
