@@ -141,4 +141,46 @@ describe('AgentLoopPanel', () => {
 
     expect(gemini.nextAction).toHaveBeenCalledTimes(2);
   });
+
+  it('ignores a stale failed executor result from a stopped run after restart', async () => {
+    // Run #1's executor stays pending (we control it); run #2's executor also
+    // stays pending so run #2 suspends after one action.
+    let resolveOldExec: (v: { success: boolean; error?: string }) => void = () => {};
+    let execCall = 0;
+    vi.spyOn(executor, 'run').mockImplementation(() => {
+      execCall += 1;
+      if (execCall === 1) {
+        return new Promise<{ success: boolean; error?: string }>(r => {
+          resolveOldExec = r;
+        });
+      }
+      return new Promise<{ success: boolean; error?: string }>(() => {});
+    });
+    vi.spyOn(gemini, 'nextAction').mockResolvedValue({
+      done: false,
+      thought: 'tıkla',
+      action: clickAction,
+    });
+    const onToast = vi.fn();
+
+    render(<AgentLoopPanel ip="1.2.3.4" token="tok" onToast={onToast} />);
+    startWithGoal('döngü');
+
+    // Run #1 reached execution and is now suspended awaiting the deferred exec.
+    await screen.findByText(/MOUSE_CLICK/);
+
+    // Stop run #1, then restart -> run #2 begins (advancing the generation).
+    fireEvent.click(screen.getByRole('button', { name: /Durdur/i }));
+    startWithGoal('döngü');
+    await waitFor(() => expect(gemini.nextAction).toHaveBeenCalledTimes(2));
+
+    // The OLD run's executor now resolves with a FAILURE. The superseded run
+    // must bail at the hoisted generation guard BEFORE toasting the error, so
+    // it cannot corrupt run #2's log/toast state.
+    resolveOldExec({ success: false, error: 'PC hatası' });
+    await new Promise(r => setTimeout(r, 0));
+    await Promise.resolve();
+
+    expect(onToast).not.toHaveBeenCalledWith('PC hatası', 'error');
+  });
 });

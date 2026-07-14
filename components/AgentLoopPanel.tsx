@@ -55,12 +55,12 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
         const label = `${action.type}: ${action.value}`;
         setLog(prev => [...prev, { thought: res.thought || '', label, status: 'running' }]);
         const exec = await executor.run([action], ip, token);
+        if (runIdRef.current !== myRunId) break;
         if (!exec.success) {
           setLog(prev => markLast(prev, 'failed'));
           onToast(exec.error || 'Adım başarısız', 'error');
           break;
         }
-        if (runIdRef.current !== myRunId) break;
         setLog(prev => markLast(prev, 'done'));
         history.push({ type: action.type, description: action.description });
         if (step === MAX_STEPS - 1) {
