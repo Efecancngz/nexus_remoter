@@ -291,6 +291,7 @@ class AiService:
                     "value": value,
                     "description": thought,
                 },
+                "image": data_url_from_jpeg_bytes(jpeg),
             }), 200
         except Exception as e:
             logging.error("[AI] next_action error: %s", e)

@@ -516,3 +516,37 @@ def test_next_action_upstream_exception_returns_502(monkeypatch):
         headers={'X-Nexus-Token': token},
     )
     assert res.status_code == 502
+
+
+def test_next_action_includes_screenshot_on_action(monkeypatch):
+    client, security, _ = _build_client(monkeypatch)
+    _patch_capture(monkeypatch)
+    token = _token(security)
+    FakeGenerativeModel.result_text = json.dumps(
+        {"done": False, "thought": "Chrome açılıyor", "type": "LAUNCH_APP", "value": "chrome"}
+    )
+    res = client.post(
+        '/ai/next-action',
+        json={'goal': 'Chrome ac', 'history': []},
+        headers={'X-Nexus-Token': token},
+    )
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body['done'] is False
+    assert body['image'].startswith('data:image/jpeg;base64,')
+
+
+def test_next_action_done_omits_image(monkeypatch):
+    client, security, _ = _build_client(monkeypatch)
+    _patch_capture(monkeypatch)
+    token = _token(security)
+    FakeGenerativeModel.result_text = json.dumps({"done": True, "summary": "bitti"})
+    res = client.post(
+        '/ai/next-action',
+        json={'goal': 'x', 'history': []},
+        headers={'X-Nexus-Token': token},
+    )
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body['done'] is True
+    assert 'image' not in body
