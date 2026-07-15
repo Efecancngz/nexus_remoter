@@ -4,6 +4,8 @@ import { nextAction } from '../services/gemini';
 import { executor } from '../services/automation';
 import HudPanel from './hud/HudPanel';
 import { ScreenshotModal } from './ScreenshotModal';
+import { useAgentRuns, RunOutcome, AgentRunStep } from '../hooks/useAgentRuns';
+import AgentRunHistory from './AgentRunHistory';
 
 type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -36,9 +38,10 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
   const [preview, setPreview] = useState<string | null>(null);
   const stopRef = useRef(false);
   const runIdRef = useRef(0);
+  const { runs, addRun, clearRuns } = useAgentRuns();
 
-  const handleStart = async () => {
-    const value = goal.trim();
+  const handleStart = async (goalArg?: string) => {
+    const value = (goalArg ?? goal).trim();
     if (!value || running) return;
     stopRef.current = false;
     const myRunId = ++runIdRef.current;
@@ -46,42 +49,73 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
     setRunning(true);
     setLog([]);
     setPreview(null);
+    const startedAt = Date.now();
+    const recorded: AgentRunStep[] = [];
+    let outcome: RunOutcome = 'stopped';
+    let detail: string | undefined;
     const history: { type: string; description: string }[] = [];
     try {
       for (let step = 0; step < MAX_STEPS; step++) {
-        if (stopRef.current || stale()) break;
+        if (stopRef.current || stale()) { outcome = 'stopped'; break; }
         const res = await nextAction(ip, token, value, history);
         if (res.done) {
           if (!stale()) onToast(res.summary || 'Görev tamamlandı', 'success');
+          outcome = 'completed';
+          detail = res.summary;
           break;
         }
-        if (stopRef.current || stale()) break;
+        if (stopRef.current || stale()) { outcome = 'stopped'; break; }
         const action = res.action!;
         const label = `${action.type}: ${action.value}`;
+        recorded.push({ thought: res.thought || '', label, status: 'failed' });
         setLog(prev => [...prev, { thought: res.thought || '', label, status: 'running', image: res.image }]);
         const exec = await executor.run([action], ip, token);
         if (stale()) break;
         if (!exec.success) {
           setLog(prev => markLast(prev, 'failed'));
           onToast(exec.error || 'Adım başarısız', 'error');
+          outcome = 'failed';
+          detail = exec.error;
           break;
         }
         setLog(prev => markLast(prev, 'done'));
+        recorded[recorded.length - 1].status = 'done';
         history.push({ type: action.type, description: action.description });
         if (step === MAX_STEPS - 1) {
           onToast('Adım sınırına ulaşıldı', 'warning');
+          outcome = 'capped';
         }
       }
     } catch (e: any) {
       if (!stale()) onToast(e?.message || 'Döngü hatası oluştu.', 'error');
+      outcome = 'failed';
+      detail = e?.message;
     } finally {
-      if (!stale()) setRunning(false);
+      if (!stale()) {
+        setRunning(false);
+        if (recorded.length > 0) {
+          addRun({
+            id: globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2, 11),
+            goal: value,
+            startedAt,
+            outcome,
+            detail,
+            steps: recorded,
+          });
+        }
+      }
     }
   };
 
   const handleStop = () => {
     stopRef.current = true;
     setRunning(false);
+  };
+
+  const handleReplay = (savedGoal: string) => {
+    if (running) return;
+    setGoal(savedGoal);
+    handleStart(savedGoal);
   };
 
   return (
@@ -113,7 +147,7 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
           </button>
         ) : (
           <button
-            onClick={handleStart}
+            onClick={() => handleStart()}
             disabled={!goal.trim()}
             className="px-5 bg-hud-cyan text-slate-950 font-black rounded-sm flex items-center gap-2 disabled:opacity-40 active:scale-95 transition-all"
           >
@@ -155,6 +189,8 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
           ))}
         </ol>
       )}
+
+      <AgentRunHistory runs={runs} running={running} onReplay={handleReplay} onClear={clearRuns} />
 
       {preview && <ScreenshotModal dataUrl={preview} onClose={() => setPreview(null)} />}
     </HudPanel>
