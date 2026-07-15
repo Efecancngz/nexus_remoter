@@ -379,3 +379,140 @@ def test_locate_upstream_exception_returns_502(monkeypatch):
         headers={'X-Nexus-Token': token},
     )
     assert res.status_code == 502
+
+
+# --- /ai/next-action (computer-use loop) ---
+
+def test_next_action_without_token_rejected(monkeypatch):
+    client, _, _ = _build_client(monkeypatch)
+    res = client.post('/ai/next-action', json={'goal': 'Chrome ac'})
+    assert res.status_code == 401
+
+
+def test_next_action_disabled_when_api_key_missing(monkeypatch):
+    client, security, svc = _build_client(monkeypatch, api_key=None)
+    token = _token(security)
+    res = client.post(
+        '/ai/next-action',
+        json={'goal': 'Chrome ac'},
+        headers={'X-Nexus-Token': token},
+    )
+    assert res.status_code == 503
+
+
+def test_next_action_missing_goal_rejected(monkeypatch):
+    client, security, _ = _build_client(monkeypatch)
+    token = _token(security)
+    res = client.post('/ai/next-action', json={}, headers={'X-Nexus-Token': token})
+    assert res.status_code == 400
+
+    res2 = client.post('/ai/next-action', json={'goal': '   '}, headers={'X-Nexus-Token': token})
+    assert res2.status_code == 400
+
+
+def test_next_action_done_passes_summary_through(monkeypatch):
+    client, security, _ = _build_client(monkeypatch)
+    _patch_capture(monkeypatch)
+    token = _token(security)
+    FakeGenerativeModel.result_text = json.dumps({"done": True, "summary": "Kedi araması tamamlandı"})
+    res = client.post(
+        '/ai/next-action',
+        json={'goal': 'kedi ara', 'history': []},
+        headers={'X-Nexus-Token': token},
+    )
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body['success'] is True
+    assert body['done'] is True
+    assert body['summary'] == "Kedi araması tamamlandı"
+    assert 'action' not in body
+    # The screenshot must be sent to Gemini as an image part.
+    contents = FakeGenerativeModel.last_instance.last_contents
+    assert contents[0]['mime_type'] == 'image/jpeg'
+    assert 'response_schema' in FakeGenerativeModel.last_instance.generation_config
+
+
+def test_next_action_non_click_passes_value_through(monkeypatch):
+    client, security, _ = _build_client(monkeypatch)
+    _patch_capture(monkeypatch)
+    token = _token(security)
+    FakeGenerativeModel.result_text = json.dumps(
+        {"done": False, "thought": "Chrome açılıyor", "type": "LAUNCH_APP", "value": "chrome"}
+    )
+    res = client.post(
+        '/ai/next-action',
+        json={'goal': 'Chrome ac', 'history': []},
+        headers={'X-Nexus-Token': token},
+    )
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body['done'] is False
+    assert body['thought'] == "Chrome açılıyor"
+    assert body['action'] == {
+        "type": "LAUNCH_APP",
+        "value": "chrome",
+        "description": "Chrome açılıyor",
+    }
+
+
+def test_next_action_click_maps_coords_to_percent(monkeypatch):
+    client, security, _ = _build_client(monkeypatch)
+    _patch_capture(monkeypatch)
+    token = _token(security)
+    FakeGenerativeModel.result_text = json.dumps(
+        {"done": False, "thought": "Adres çubuğuna tıkla", "type": "MOUSE_CLICK", "x": 500, "y": 80}
+    )
+    res = client.post(
+        '/ai/next-action',
+        json={'goal': 'x', 'history': []},
+        headers={'X-Nexus-Token': token},
+    )
+    body = res.get_json()
+    assert body['action']['type'] == 'MOUSE_CLICK'
+    assert body['action']['value'] == '50.0%,8.0%'
+    assert body['action']['description'] == 'Adres çubuğuna tıkla'
+
+
+def test_next_action_click_clamps_out_of_range_coords(monkeypatch):
+    client, security, _ = _build_client(monkeypatch)
+    _patch_capture(monkeypatch)
+    token = _token(security)
+    FakeGenerativeModel.result_text = json.dumps(
+        {"done": False, "thought": "t", "type": "MOUSE_CLICK", "x": 1200, "y": -30}
+    )
+    res = client.post(
+        '/ai/next-action',
+        json={'goal': 'x'},
+        headers={'X-Nexus-Token': token},
+    )
+    body = res.get_json()
+    assert body['action']['value'] == '100.0%,0.0%'
+
+
+def test_next_action_serializes_history_into_prompt(monkeypatch):
+    client, security, _ = _build_client(monkeypatch)
+    _patch_capture(monkeypatch)
+    token = _token(security)
+    FakeGenerativeModel.result_text = json.dumps({"done": True, "summary": "ok"})
+    client.post(
+        '/ai/next-action',
+        json={'goal': 'kedi ara', 'history': [{'type': 'LAUNCH_APP', 'description': 'Chrome açıldı'}]},
+        headers={'X-Nexus-Token': token},
+    )
+    # The text part must carry the goal and the prior step description.
+    text_part = FakeGenerativeModel.last_instance.last_contents[1]
+    assert 'kedi ara' in text_part
+    assert 'Chrome açıldı' in text_part
+
+
+def test_next_action_upstream_exception_returns_502(monkeypatch):
+    client, security, _ = _build_client(monkeypatch)
+    _patch_capture(monkeypatch)
+    token = _token(security)
+    FakeGenerativeModel.should_raise = RuntimeError("upstream boom")
+    res = client.post(
+        '/ai/next-action',
+        json={'goal': 'x'},
+        headers={'X-Nexus-Token': token},
+    )
+    assert res.status_code == 502

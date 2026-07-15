@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { generateMacro, generateMacroFromAudio, parseSchedulerPrompt, locate } from './gemini';
+import { generateMacro, generateMacroFromAudio, parseSchedulerPrompt, locate, nextAction } from './gemini';
 
 function jsonResponse(status: number, body: unknown) {
   return {
@@ -212,6 +212,53 @@ describe('gemini service (agent /ai/* proxy client)', () => {
       fetchMock.mockResolvedValue(jsonResponse(401, {}));
 
       await expect(locate('1.2.3.4', 'bad-tok', 'x')).rejects.toThrow('AUTH_REQUIRED');
+    });
+  });
+
+  describe('nextAction', () => {
+    it('posts goal and history and returns an action with an id when not done', async () => {
+      const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+      fetchMock.mockResolvedValue(
+        jsonResponse(200, {
+          success: true,
+          done: false,
+          thought: 'Adres çubuğuna tıkla',
+          action: { type: 'MOUSE_CLICK', value: '50%,8%', description: 'Adres çubuğuna tıkla' },
+        })
+      );
+
+      const history = [{ type: 'LAUNCH_APP', description: 'Chrome açıldı' }];
+      const result = await nextAction('192.168.1.5', 'tok-123', 'kedi ara', history);
+
+      const [url, options] = fetchMock.mock.calls[0];
+      expect(url).toBe('https://192.168.1.5:8080/ai/next-action');
+      expect(options.headers['X-Nexus-Token']).toBe('tok-123');
+      expect(JSON.parse(options.body)).toEqual({ goal: 'kedi ara', history });
+      expect(result.done).toBe(false);
+      expect(result.thought).toBe('Adres çubuğuna tıkla');
+      expect(result.action?.type).toBe('MOUSE_CLICK');
+      expect(result.action?.value).toBe('50%,8%');
+      expect(result.action?.id).toBeTruthy();
+    });
+
+    it('returns done with the summary and no action when the goal is complete', async () => {
+      const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+      fetchMock.mockResolvedValue(
+        jsonResponse(200, { success: true, done: true, summary: 'Görev tamamlandı' })
+      );
+
+      const result = await nextAction('1.2.3.4', 'tok', 'x', []);
+
+      expect(result.done).toBe(true);
+      expect(result.summary).toBe('Görev tamamlandı');
+      expect(result.action).toBeUndefined();
+    });
+
+    it('throws AUTH_REQUIRED on a 401 response', async () => {
+      const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+      fetchMock.mockResolvedValue(jsonResponse(401, {}));
+
+      await expect(nextAction('1.2.3.4', 'bad-tok', 'x', [])).rejects.toThrow('AUTH_REQUIRED');
     });
   });
 });

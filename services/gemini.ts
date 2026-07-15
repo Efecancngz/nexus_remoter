@@ -79,3 +79,26 @@ export const locate = async (
     image: data.image,
   };
 };
+
+export const nextAction = async (
+  ip: string,
+  token: string,
+  goal: string,
+  history: { type: string; description: string }[]
+): Promise<{ done: boolean; thought?: string; action?: AutomationStep; summary?: string }> => {
+  const data = await callAgent('/ai/next-action', ip, token, { goal, history });
+  if (data.done) {
+    return { done: true, summary: data.summary };
+  }
+  const a = data.action ?? {};
+  return {
+    done: false,
+    thought: data.thought,
+    action: {
+      id: (globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2, 11)),
+      type: a.type,
+      value: a.value,
+      description: a.description,
+    },
+  };
+};
