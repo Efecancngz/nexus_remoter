@@ -139,6 +139,7 @@ class AiService:
             logging.info("[AI] Gemini proxy enabled")
         else:
             logging.warning("[AI] GEMINI_API_KEY missing or library absent; AI proxy disabled")
+        self.goal_runner = None
 
     def register(self, app):
         app.add_url_rule('/ai/macro', 'ai_macro', self.macro, methods=['POST'])
@@ -146,6 +147,8 @@ class AiService:
         app.add_url_rule('/ai/schedule', 'ai_schedule', self.schedule, methods=['POST'])
         app.add_url_rule('/ai/locate', 'ai_locate', self.locate, methods=['POST'])
         app.add_url_rule('/ai/next-action', 'ai_next_action', self.next_action, methods=['POST'])
+        app.add_url_rule('/ai/run-goal', 'ai_run_goal', self.run_goal, methods=['POST'])
+        app.add_url_rule('/ai/runs', 'ai_runs', self.runs, methods=['GET'])
 
     def _authorized(self):
         return self.security.validate_token(request.headers.get('X-Nexus-Token'))
@@ -249,6 +252,41 @@ class AiService:
             logging.error("[AI] schedule error: %s", e)
             return jsonify({"success": False, "error": str(e)}), 502
 
+    def decide_next_action(self, goal, history):
+        """Capture + decide one step. Returns (decision: dict, jpeg: bytes).
+
+        decision is {"done": True, "summary": str}
+                or  {"done": False, "thought": str, "action": {"type","value","description"}}.
+        """
+        history_lines = "\n".join(
+            f"- {h.get('type', '')}: {h.get('description', '')}" for h in history
+        ) or "(henüz yok)"
+        prompt = f"Hedef: {goal}\nŞimdiye kadar yapılanlar:\n{history_lines}"
+        jpeg = capture_jpeg_bytes()
+        model = self._model(_NEXT_ACTION_INSTRUCTION, _NEXT_ACTION_SCHEMA)
+        resp = model.generate_content([
+            {"mime_type": "image/jpeg", "data": jpeg},
+            prompt,
+        ])
+        result = json.loads(resp.text)
+        if result.get("done"):
+            return {"done": True, "summary": result.get("summary", "")}, jpeg
+        thought = result.get("thought", "")
+        action_type = result.get("type", "")
+        if action_type in _COORD_TYPES:
+            value = f"{_clamp_pct(result.get('x', 0) / 10.0)}%,{_clamp_pct(result.get('y', 0) / 10.0)}%"
+        else:
+            value = result.get("value", "")
+        return {
+            "done": False,
+            "thought": thought,
+            "action": {"type": action_type, "value": value, "description": thought},
+        }, jpeg
+
+    def decide_next_action_for_runner(self, goal, history):
+        decision, _jpeg = self.decide_next_action(goal, history)
+        return decision
+
     def next_action(self):
         guard = self._guard()
         if guard:
@@ -258,41 +296,39 @@ class AiService:
         if not goal or not goal.strip():
             return jsonify({"success": False, "error": "Missing goal"}), 400
         history = data.get('history') or []
-        history_lines = "\n".join(
-            f"- {h.get('type', '')}: {h.get('description', '')}" for h in history
-        ) or "(henüz yok)"
-        prompt = f"Hedef: {goal}\nŞimdiye kadar yapılanlar:\n{history_lines}"
         try:
-            jpeg = capture_jpeg_bytes()
-            model = self._model(_NEXT_ACTION_INSTRUCTION, _NEXT_ACTION_SCHEMA)
-            resp = model.generate_content([
-                {"mime_type": "image/jpeg", "data": jpeg},
-                prompt,
-            ])
-            result = json.loads(resp.text)
-            if result.get("done"):
-                return jsonify({
-                    "success": True,
-                    "done": True,
-                    "summary": result.get("summary", ""),
-                }), 200
-            thought = result.get("thought", "")
-            action_type = result.get("type", "")
-            if action_type in _COORD_TYPES:
-                value = f"{_clamp_pct(result.get('x', 0) / 10.0)}%,{_clamp_pct(result.get('y', 0) / 10.0)}%"
-            else:
-                value = result.get("value", "")
+            decision, jpeg = self.decide_next_action(goal, history)
+            if decision["done"]:
+                return jsonify({"success": True, "done": True, "summary": decision["summary"]}), 200
             return jsonify({
                 "success": True,
                 "done": False,
-                "thought": thought,
-                "action": {
-                    "type": action_type,
-                    "value": value,
-                    "description": thought,
-                },
+                "thought": decision["thought"],
+                "action": decision["action"],
                 "image": data_url_from_jpeg_bytes(jpeg),
             }), 200
         except Exception as e:
             logging.error("[AI] next_action error: %s", e)
             return jsonify({"success": False, "error": str(e)}), 502
+
+    def run_goal(self):
+        guard = self._guard()
+        if guard:
+            return guard
+        data = request.json or {}
+        goal = data.get('goal', '')
+        if not goal or not goal.strip():
+            return jsonify({"success": False, "error": "Missing goal"}), 400
+        if self.goal_runner is None:
+            return jsonify({"success": False, "error": "Runner unavailable"}), 503
+        run_id = self.goal_runner.start(goal.strip())
+        if run_id is None:
+            return jsonify({"success": False, "error": "busy"}), 409
+        return jsonify({"success": True, "run_id": run_id}), 200
+
+    def runs(self):
+        guard = self._guard()
+        if guard:
+            return guard
+        records = self.goal_runner.recent_runs() if self.goal_runner else []
+        return jsonify({"success": True, "runs": records}), 200
