@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { History, RotateCcw, Trash2, CheckCircle2, XCircle, Square, Timer, SkipForward } from 'lucide-react';
 import { AgentRun, RunOutcome } from '../hooks/useAgentRuns';
+import { ScreenshotModal } from './ScreenshotModal';
 
 interface AgentRunHistoryProps {
   runs: AgentRun[];
   running: boolean;
   onReplay: (goal: string) => void;
   onClear: () => void;
+  loadImages?: (runId: string) => Promise<(string | null)[] | null>;
 }
 
 const OUTCOME_META: Record<RunOutcome, { label: string; className: string }> = {
@@ -34,8 +36,20 @@ function formatRelative(ts: number): string {
   return `${Math.floor(hr / 24)} gün önce`;
 }
 
-export default function AgentRunHistory({ runs, running, onReplay, onClear }: AgentRunHistoryProps) {
+export default function AgentRunHistory({ runs, running, onReplay, onClear, loadImages }: AgentRunHistoryProps) {
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [images, setImages] = useState<Record<string, (string | null)[] | null>>({});
+  const [preview, setPreview] = useState<string | null>(null);
+
+  const handleToggle = (id: string) => {
+    const opening = expanded !== id;
+    setExpanded(opening ? id : null);
+    if (opening && loadImages && images[id] === undefined) {
+      loadImages(id)
+        .then(imgs => setImages(prev => ({ ...prev, [id]: imgs })))
+        .catch(() => setImages(prev => ({ ...prev, [id]: null })));
+    }
+  };
 
   if (runs.length === 0) return null;
 
@@ -65,7 +79,7 @@ export default function AgentRunHistory({ runs, running, onReplay, onClear }: Ag
               <button
                 type="button"
                 data-testid="run-row"
-                onClick={() => setExpanded(isOpen ? null : run.id)}
+                onClick={() => handleToggle(run.id)}
                 className="w-full flex items-center gap-2 p-2.5 text-left"
               >
                 <OutcomeIcon outcome={run.outcome} />
@@ -93,6 +107,22 @@ export default function AgentRunHistory({ runs, running, onReplay, onClear }: Ag
                   <ol className="space-y-1">
                     {run.steps.map((s, i) => (
                       <li key={i} className="flex items-start gap-2 text-[11px] font-data text-slate-300">
+                        {images[run.id]?.[i] && (
+                          <button
+                            type="button"
+                            data-testid="history-thumbnail"
+                            onClick={() => setPreview(images[run.id]![i]!)}
+                            className="shrink-0 active:scale-95 transition-transform"
+                          >
+                            <img
+                              src={images[run.id]![i]!}
+                              alt="Adım görüntüsü"
+                              className="w-16 h-10 object-cover rounded-sm border border-hud-dim"
+                              loading="lazy"
+                              decoding="async"
+                            />
+                          </button>
+                        )}
                         {s.status === 'done' ? (
                           <CheckCircle2 size={12} className="text-hud-cyan shrink-0 mt-0.5" />
                         ) : s.status === 'skipped' ? (
@@ -113,6 +143,7 @@ export default function AgentRunHistory({ runs, running, onReplay, onClear }: Ag
           );
         })}
       </ol>
+      {preview && <ScreenshotModal dataUrl={preview} onClose={() => setPreview(null)} />}
     </div>
   );
 }

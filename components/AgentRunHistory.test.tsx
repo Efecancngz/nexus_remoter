@@ -96,4 +96,49 @@ describe('AgentRunHistory', () => {
     fireEvent.click(screen.getByTestId('run-row'));
     expect(screen.getByTestId('step-skipped')).toBeTruthy();
   });
+
+  it('loads and renders a thumbnail for a step image when expanded', async () => {
+    const loadImages = vi.fn().mockResolvedValue(['data:image/jpeg;base64,SHOT', null]);
+    render(
+      <AgentRunHistory
+        runs={[run({
+          steps: [
+            { thought: 'a', label: 'MOUSE_CLICK: 1%,1%', status: 'done' },
+            { thought: 'b', label: 'MOUSE_CLICK: 2%,2%', status: 'done' },
+          ],
+        })]}
+        running={false}
+        onReplay={vi.fn()}
+        onClear={vi.fn()}
+        loadImages={loadImages}
+      />
+    );
+    fireEvent.click(screen.getByTestId('run-row'));
+    const thumbs = await screen.findAllByTestId('history-thumbnail');
+    expect(thumbs).toHaveLength(1); // only the first step had an image
+    expect(loadImages).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens ScreenshotModal when a history thumbnail is tapped', async () => {
+    const loadImages = vi.fn().mockResolvedValue(['data:image/jpeg;base64,SHOT']);
+    render(
+      <AgentRunHistory
+        runs={[run()]}
+        running={false}
+        onReplay={vi.fn()}
+        onClear={vi.fn()}
+        loadImages={loadImages}
+      />
+    );
+    fireEvent.click(screen.getByTestId('run-row'));
+    fireEvent.click(await screen.findByTestId('history-thumbnail'));
+    expect(await screen.findByRole('button', { name: 'Kapat' })).toBeTruthy();
+    expect(screen.getByAltText('Ekran görüntüsü').getAttribute('src')).toBe('data:image/jpeg;base64,SHOT');
+  });
+
+  it('renders text steps with no thumbnails when no loader is provided', () => {
+    render(<AgentRunHistory runs={[run()]} running={false} onReplay={vi.fn()} onClear={vi.fn()} />);
+    fireEvent.click(screen.getByTestId('run-row'));
+    expect(screen.queryByTestId('history-thumbnail')).toBeNull();
+  });
 });
