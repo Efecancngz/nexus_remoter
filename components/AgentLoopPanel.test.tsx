@@ -4,13 +4,16 @@ import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-libra
 import AgentLoopPanel from './AgentLoopPanel';
 import * as gemini from '../services/gemini';
 import { executor } from '../services/automation';
+import { AGENT_RUNS_KEY, AgentRun } from '../hooks/useAgentRuns';
 
 describe('AgentLoopPanel', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    localStorage.clear();
   });
   afterEach(() => {
     vi.restoreAllMocks();
+    localStorage.clear();
     cleanup();
   });
 
@@ -332,5 +335,125 @@ describe('AgentLoopPanel', () => {
 
     // The Kapat button should no longer be visible after starting a new run
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Kapat' })).toBeNull());
+  });
+
+  function storedRuns(): AgentRun[] {
+    const raw = localStorage.getItem(AGENT_RUNS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  }
+
+  it('records a completed run with its steps', async () => {
+    vi.spyOn(gemini, 'nextAction')
+      .mockResolvedValueOnce({ done: false, thought: 'tıkla', action: clickAction })
+      .mockResolvedValueOnce({ done: true, summary: 'Görev bitti' });
+    vi.spyOn(executor, 'run').mockResolvedValue({ success: true });
+
+    render(<AgentLoopPanel ip="1.2.3.4" token="tok" onToast={vi.fn()} />);
+    startWithGoal('kedi ara');
+
+    await waitFor(() => expect(storedRuns()).toHaveLength(1));
+    const run = storedRuns()[0];
+    expect(run.goal).toBe('kedi ara');
+    expect(run.outcome).toBe('completed');
+    expect(run.detail).toBe('Görev bitti');
+    expect(run.steps).toHaveLength(1);
+    expect(run.steps[0].status).toBe('done');
+    expect(run.steps[0].label).toBe('MOUSE_CLICK: 10%,10%');
+  });
+
+  it('records a failed run when a step fails', async () => {
+    vi.spyOn(gemini, 'nextAction').mockResolvedValue({
+      done: false,
+      thought: 'tıkla',
+      action: clickAction,
+    });
+    vi.spyOn(executor, 'run').mockResolvedValue({ success: false, error: 'PC hatası' });
+
+    render(<AgentLoopPanel ip="1.2.3.4" token="tok" onToast={vi.fn()} />);
+    startWithGoal('hata');
+
+    await waitFor(() => expect(storedRuns()).toHaveLength(1));
+    const run = storedRuns()[0];
+    expect(run.outcome).toBe('failed');
+    expect(run.detail).toBe('PC hatası');
+    expect(run.steps[0].status).toBe('failed');
+  });
+
+  it('records a stopped run when STOP is pressed mid-step', async () => {
+    let resolveExec: (v: { success: boolean }) => void = () => {};
+    vi.spyOn(gemini, 'nextAction').mockResolvedValue({
+      done: false,
+      thought: 'tıkla',
+      action: clickAction,
+    });
+    vi.spyOn(executor, 'run').mockReturnValue(new Promise(r => { resolveExec = r; }));
+
+    render(<AgentLoopPanel ip="1.2.3.4" token="tok" onToast={vi.fn()} />);
+    startWithGoal('sonsuz');
+
+    await screen.findByText(/MOUSE_CLICK/);
+    fireEvent.click(screen.getByRole('button', { name: /Durdur/i }));
+    resolveExec({ success: true });
+
+    await waitFor(() => expect(storedRuns()).toHaveLength(1));
+    expect(storedRuns()[0].outcome).toBe('stopped');
+  });
+
+  it('does not record a superseded (stale) run', async () => {
+    // Run #1 stays pending; stop+restart supersedes it; resolving it must not record.
+    let resolveOldExec: (v: { success: boolean }) => void = () => {};
+    let execCall = 0;
+    vi.spyOn(executor, 'run').mockImplementation(() => {
+      execCall += 1;
+      if (execCall === 1) return new Promise<{ success: boolean }>(r => { resolveOldExec = r; });
+      return new Promise<{ success: boolean }>(() => {});
+    });
+    vi.spyOn(gemini, 'nextAction').mockResolvedValue({
+      done: false,
+      thought: 'tıkla',
+      action: clickAction,
+    });
+
+    render(<AgentLoopPanel ip="1.2.3.4" token="tok" onToast={vi.fn()} />);
+    startWithGoal('döngü');
+    await screen.findByText(/MOUSE_CLICK/);
+
+    fireEvent.click(screen.getByRole('button', { name: /Durdur/i }));
+    // STOP flips stopRef, but run #1 is still suspended mid-await on the pending
+    // executor call, so nothing is recorded yet. Restart -> run #2 begins,
+    // superseding run #1 (its generation token goes stale).
+    startWithGoal('döngü');
+    await waitFor(() => expect(gemini.nextAction).toHaveBeenCalledTimes(2));
+
+    // Resolve the OLD (stale) run's executor: since run #1 is now stale, its
+    // finally block must skip recording entirely (no record at all).
+    resolveOldExec({ success: true });
+    await new Promise(r => setTimeout(r, 0));
+    await Promise.resolve();
+    expect(storedRuns()).toHaveLength(0);
+  });
+
+  it('replays a saved run when Tekrar Calistir is tapped', async () => {
+    vi.spyOn(gemini, 'nextAction')
+      .mockResolvedValueOnce({ done: false, thought: 'tıkla', action: clickAction })
+      .mockResolvedValueOnce({ done: true, summary: 'bitti' })
+      // Replay run:
+      .mockResolvedValueOnce({ done: false, thought: 'tıkla', action: clickAction })
+      .mockResolvedValueOnce({ done: true, summary: 'bitti tekrar' });
+    vi.spyOn(executor, 'run').mockResolvedValue({ success: true });
+    const onToast = vi.fn();
+
+    render(<AgentLoopPanel ip="1.2.3.4" token="tok" onToast={onToast} />);
+    startWithGoal('kedi ara');
+    await waitFor(() => expect(storedRuns()).toHaveLength(1));
+
+    // Expand the history row, then replay.
+    fireEvent.click(screen.getByTestId('run-row'));
+    fireEvent.click(screen.getByRole('button', { name: /Tekrar Çalıştır/i }));
+
+    await waitFor(() => expect(onToast).toHaveBeenCalledWith('bitti tekrar', 'success'));
+    // A second run was recorded for the same goal.
+    await waitFor(() => expect(storedRuns()).toHaveLength(2));
+    expect(storedRuns()[0].goal).toBe('kedi ara');
   });
 });
