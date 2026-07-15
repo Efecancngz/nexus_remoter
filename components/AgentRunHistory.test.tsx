@@ -83,4 +83,17 @@ describe('AgentRunHistory', () => {
     fireEvent.click(screen.getByRole('button', { name: /Geçmişi Temizle/i }));
     expect(onClear).toHaveBeenCalledTimes(1);
   });
+
+  it('renders a skipped marker for a skipped step when expanded', () => {
+    render(
+      <AgentRunHistory
+        runs={[run({ steps: [{ thought: 'atla', label: 'MOUSE_CLICK: 10%,10%', status: 'skipped' }] })]}
+        running={false}
+        onReplay={vi.fn()}
+        onClear={vi.fn()}
+      />
+    );
+    fireEvent.click(screen.getByTestId('run-row'));
+    expect(screen.getByTestId('step-skipped')).toBeTruthy();
+  });
 });

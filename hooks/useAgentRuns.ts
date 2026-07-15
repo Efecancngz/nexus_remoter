@@ -5,7 +5,7 @@ export type RunOutcome = 'completed' | 'failed' | 'stopped' | 'capped';
 export interface AgentRunStep {
   thought: string;
   label: string;
-  status: 'done' | 'failed';
+  status: 'done' | 'failed' | 'skipped';
 }
 
 export interface AgentRun {
