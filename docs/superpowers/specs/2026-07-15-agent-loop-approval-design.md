@@ -6,9 +6,27 @@
 
 ## Goal
 
-An opt-in **approval mode** where the agent loop pauses before executing each proposed
-action, so the user can run it as-is, tweak its value first, or skip it — plus the existing
-Stop. When the mode is off, runs auto-execute exactly as today.
+An opt-in **approval mode** where the agent loop pauses before executing each **risky**
+proposed action, so the user can run it as-is, tweak its value first, or skip it — plus the
+existing Stop. Safe actions (clicks, moves, launches, etc.) auto-run even with the mode on,
+keeping runs fast while guarding the consequential steps. When the mode is off, everything
+auto-executes exactly as today.
+
+## Risky action types
+
+Approval mode only gates a fixed set of consequential action types; all other types
+auto-run. The **risky set** is:
+
+```
+TYPE_TEXT, KEYPRESS, HOTKEY, COMMAND, SYSTEM_POWER, CLOSE_APP
+```
+
+This covers text entry, key/shortcut presses, raw shell commands, power actions
+(shutdown/restart/sleep/lock), and closing apps. All other emitted types — `MOUSE_CLICK`,
+`MOUSE_MOVE`, `MOUSE_SCROLL`, `LAUNCH_APP`, `OPEN_URL`, `FOCUS_WINDOW`, `WINDOW_MANAGE`,
+`VOLUME_*`, `MEDIA_*`, `CLIPBOARD_*`, `WAIT`, `SCREENSHOT`, `MACRO`, … — are treated as safe
+and auto-run. The set is a fixed client-side constant (`RISKY_ACTION_TYPES`), not
+user-configurable.
 
 ## Background
 
@@ -27,11 +45,11 @@ A new **"Onay modu"** (approval mode) switch sits next to the goal input. Its li
 mirrored into `approvalRef` (a ref) so the loop reads it fresh each step — toggling mid-run
 takes effect from the next step. The switch stays enabled during a run.
 
-When `approvalRef.current` is true, the loop — after `nextAction` returns a non-done action
-and after the action row is pushed to the log, but **before** `executor.run` — parks and
-shows a gate. When false, the loop executes immediately (unchanged behavior). Approval mode
-is independent of #5c pause: both may be on; pause parks at the loop top, approval parks
-before execution.
+When `approvalRef.current` is true **and the proposed action's type is in the risky set**,
+the loop — after `nextAction` returns a non-done action and after the action row is pushed to
+the log, but **before** `executor.run` — parks and shows a gate. Otherwise (mode off, or a
+safe action) the loop executes immediately (unchanged behavior). Approval mode is independent
+of #5c pause: both may be on; pause parks at the loop top, approval parks before execution.
 
 ## Architecture
 
@@ -50,16 +68,22 @@ recording block stay byte-for-byte.
 
 Where `type Decision = { kind: 'confirm'; value: string } | { kind: 'skip' }`.
 
+A module-level constant defines the gated types:
+
+```ts
+const RISKY_ACTION_TYPES = new Set(['TYPE_TEXT', 'KEYPRESS', 'HOTKEY', 'COMMAND', 'SYSTEM_POWER', 'CLOSE_APP']);
+```
+
 ### Decision barrier (in `handleStart`, before `executor.run`)
 
 The current sequence pushes the running log row, then calls `executor.run`. Insert the gate
-between them:
+between them, firing only for risky actions:
 
 ```ts
 recorded.push({ thought: res.thought || '', label, status: 'failed' });
 setLog(prev => [...prev, { thought: res.thought || '', label, status: 'running', image: res.image }]);
 
-if (approvalRef.current) {
+if (approvalRef.current && RISKY_ACTION_TYPES.has(action.type)) {
   setPendingAction({ type: action.type, value: action.value, description: action.description });
   const decision = await new Promise<Decision>(resolve => { decisionRef.current = resolve; });
   setPendingAction(null);
@@ -120,10 +144,15 @@ label and the visible log row so history shows what actually ran.
 
 ## Testing
 
+Gating tests use a **risky** action type (e.g. `TYPE_TEXT`) so the gate fires; the
+auto-run test uses a **safe** type (`MOUSE_CLICK`).
+
 **`components/AgentLoopPanel.test.tsx` (appended):**
 - Approval OFF: a run auto-executes (existing behavior; `executor.run` called without any
   gate interaction).
-- Approval ON: the loop parks before `executor.run` — no `executor.run` call until Confirm.
+- Approval ON + **safe** action (`MOUSE_CLICK`): auto-runs, no gate shown.
+- Approval ON + **risky** action (`TYPE_TEXT`): the loop parks before `executor.run` — no
+  `executor.run` call until Confirm, and the gate is shown.
 - Confirm as-is: `executor.run` receives the original value.
 - Edit then confirm: `executor.run` receives the edited value, and the recorded step's label
   reflects the edit.
@@ -157,5 +186,5 @@ hook); no new test required beyond the existing round-trip coverage.
 - Editing the action *type* (only the value is editable).
 - Client-side validation of the edited value.
 - Re-asking Gemini after an edit (the edited action is executed directly).
-- Approval as a per-action-type filter (e.g. auto-approve clicks, gate only typing).
+- A user-configurable risky set (the set is a fixed client-side constant).
 - Making skipped steps not consume the step cap.
