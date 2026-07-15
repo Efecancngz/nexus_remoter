@@ -550,3 +550,87 @@ def test_next_action_done_omits_image(monkeypatch):
     body = res.get_json()
     assert body['done'] is True
     assert 'image' not in body
+
+
+# --- decide_next_action extraction + /ai/run-goal + /ai/runs ---
+
+class _StubRunner:
+    def __init__(self, start_result="rid-1", runs=None):
+        self.start_result = start_result
+        self._runs = runs or []
+        self.started_with = None
+
+    def start(self, goal):
+        self.started_with = goal
+        return self.start_result
+
+    def recent_runs(self):
+        return self._runs
+
+
+def test_decide_next_action_returns_action_shape(monkeypatch):
+    _client, _security, svc = _build_client(monkeypatch)
+    _patch_capture(monkeypatch)
+    FakeGenerativeModel.result_text = json.dumps({
+        "done": False, "thought": "tıkla", "type": "MOUSE_CLICK", "x": 500, "y": 500
+    })
+    decision, jpeg = svc.decide_next_action("hedef", [])
+    assert decision["done"] is False
+    assert decision["action"]["type"] == "MOUSE_CLICK"
+    assert decision["action"]["value"] == "50.0%,50.0%"
+    assert isinstance(jpeg, (bytes, bytearray))
+
+
+def test_decide_next_action_returns_done_shape(monkeypatch):
+    _client, _security, svc = _build_client(monkeypatch)
+    _patch_capture(monkeypatch)
+    FakeGenerativeModel.result_text = json.dumps({"done": True, "summary": "bitti"})
+    decision, _jpeg = svc.decide_next_action("hedef", [])
+    assert decision == {"done": True, "summary": "bitti"}
+
+
+def test_run_goal_requires_auth(monkeypatch):
+    client, _security, svc = _build_client(monkeypatch)
+    svc.goal_runner = _StubRunner()
+    resp = client.post("/ai/run-goal", json={"goal": "hedef"})
+    assert resp.status_code == 401
+
+
+def test_run_goal_missing_goal(monkeypatch):
+    client, security, svc = _build_client(monkeypatch)
+    svc.goal_runner = _StubRunner()
+    resp = client.post("/ai/run-goal", json={"goal": "  "},
+                       headers={"X-Nexus-Token": _token(security)})
+    assert resp.status_code == 400
+
+
+def test_run_goal_starts_run(monkeypatch):
+    client, security, svc = _build_client(monkeypatch)
+    svc.goal_runner = _StubRunner(start_result="rid-1")
+    resp = client.post("/ai/run-goal", json={"goal": "hedef"},
+                       headers={"X-Nexus-Token": _token(security)})
+    assert resp.status_code == 200
+    assert resp.get_json()["run_id"] == "rid-1"
+    assert svc.goal_runner.started_with == "hedef"
+
+
+def test_run_goal_busy_returns_409(monkeypatch):
+    client, security, svc = _build_client(monkeypatch)
+    svc.goal_runner = _StubRunner(start_result=None)
+    resp = client.post("/ai/run-goal", json={"goal": "hedef"},
+                       headers={"X-Nexus-Token": _token(security)})
+    assert resp.status_code == 409
+
+
+def test_runs_lists_records(monkeypatch):
+    client, security, svc = _build_client(monkeypatch)
+    svc.goal_runner = _StubRunner(runs=[{"run_id": "a", "outcome": "completed"}])
+    resp = client.get("/ai/runs", headers={"X-Nexus-Token": _token(security)})
+    assert resp.status_code == 200
+    assert resp.get_json()["runs"][0]["run_id"] == "a"
+
+
+def test_runs_requires_auth(monkeypatch):
+    client, _security, svc = _build_client(monkeypatch)
+    svc.goal_runner = _StubRunner()
+    assert client.get("/ai/runs").status_code == 401

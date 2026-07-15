@@ -12,6 +12,10 @@ import sys
 from core.cert_store import CertStore
 from core.pending_results import PendingResults
 from utils.network import get_local_ip
+from services.goal_runner import GoalRunner
+from core.run_store import RunStore
+from actions import get_action
+from actions.base import ActionContext
 
 # Suppress Flask logging
 log = logging.getLogger('werkzeug')
@@ -53,7 +57,25 @@ class ApiService(Service):
         self.app.add_url_rule('/', 'cert_landing', self.cert_landing, methods=['GET'])
 
         # Server-side Gemini proxy (keeps the API key off the client)
-        AiService(self.security).register(self.app)
+        ai = AiService(self.security)
+        run_store_path = os.path.join(
+            os.path.dirname(os.path.abspath(sys.argv[0])), "data", "agent_runs.json"
+        )
+        run_store = RunStore(run_store_path)
+        bus = self.bus
+
+        def _execute_action(action):
+            cls = get_action(action.get("type"))
+            if cls is None:
+                raise ValueError(f"Unknown action type: {action.get('type')!r}")
+            return cls().execute(action.get("value"), ActionContext(bus=bus))
+
+        ai.goal_runner = GoalRunner(
+            decide=ai.decide_next_action_for_runner,
+            execute=_execute_action,
+            store=run_store,
+        )
+        ai.register(self.app)
 
         # Subscribe to stats updates
         self.bus.subscribe("SYSTEM_STATS_UPDATED", self.on_stats_update)
