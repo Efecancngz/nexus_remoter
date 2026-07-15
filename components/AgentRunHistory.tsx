@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { History, RotateCcw, Trash2, CheckCircle2, XCircle, Square, Timer } from 'lucide-react';
+import { History, RotateCcw, Trash2, CheckCircle2, XCircle, Square, Timer, SkipForward } from 'lucide-react';
 import { AgentRun, RunOutcome } from '../hooks/useAgentRuns';
 
 interface AgentRunHistoryProps {
@@ -93,9 +93,13 @@ export default function AgentRunHistory({ runs, running, onReplay, onClear }: Ag
                   <ol className="space-y-1">
                     {run.steps.map((s, i) => (
                       <li key={i} className="flex items-start gap-2 text-[11px] font-data text-slate-300">
-                        {s.status === 'done'
-                          ? <CheckCircle2 size={12} className="text-hud-cyan shrink-0 mt-0.5" />
-                          : <XCircle size={12} className="text-red-500 shrink-0 mt-0.5" />}
+                        {s.status === 'done' ? (
+                          <CheckCircle2 size={12} className="text-hud-cyan shrink-0 mt-0.5" />
+                        ) : s.status === 'skipped' ? (
+                          <SkipForward data-testid="step-skipped" size={12} className="text-slate-500 shrink-0 mt-0.5" />
+                        ) : (
+                          <XCircle size={12} className="text-red-500 shrink-0 mt-0.5" />
+                        )}
                         <span className="flex-1">
                           <span className="text-slate-400">{s.thought}</span>
                           <span className="block text-slate-600">{s.label}</span>
