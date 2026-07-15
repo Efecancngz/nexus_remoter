@@ -39,23 +39,24 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
     if (!value || running) return;
     stopRef.current = false;
     const myRunId = ++runIdRef.current;
+    const stale = () => runIdRef.current !== myRunId;
     setRunning(true);
     setLog([]);
     const history: { type: string; description: string }[] = [];
     try {
       for (let step = 0; step < MAX_STEPS; step++) {
-        if (stopRef.current || runIdRef.current !== myRunId) break;
+        if (stopRef.current || stale()) break;
         const res = await nextAction(ip, token, value, history);
         if (res.done) {
-          onToast(res.summary || 'Görev tamamlandı', 'success');
+          if (!stale()) onToast(res.summary || 'Görev tamamlandı', 'success');
           break;
         }
-        if (stopRef.current || runIdRef.current !== myRunId) break;
+        if (stopRef.current || stale()) break;
         const action = res.action!;
         const label = `${action.type}: ${action.value}`;
         setLog(prev => [...prev, { thought: res.thought || '', label, status: 'running' }]);
         const exec = await executor.run([action], ip, token);
-        if (runIdRef.current !== myRunId) break;
+        if (stale()) break;
         if (!exec.success) {
           setLog(prev => markLast(prev, 'failed'));
           onToast(exec.error || 'Adım başarısız', 'error');
@@ -68,9 +69,9 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
         }
       }
     } catch (e: any) {
-      onToast(e?.message || 'Döngü hatası oluştu.', 'error');
+      if (!stale()) onToast(e?.message || 'Döngü hatası oluştu.', 'error');
     } finally {
-      setRunning(false);
+      if (!stale()) setRunning(false);
     }
   };
 

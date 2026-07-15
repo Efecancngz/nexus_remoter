@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react';
 import AgentLoopPanel from './AgentLoopPanel';
 import * as gemini from '../services/gemini';
 import { executor } from '../services/automation';
@@ -182,5 +182,47 @@ describe('AgentLoopPanel', () => {
     await Promise.resolve();
 
     expect(onToast).not.toHaveBeenCalledWith('PC hatası', 'error');
+  });
+
+  it('keeps STOP control after a stop -> restart when the old run resolves late', async () => {
+    // Run #1's executor stays pending (we control it); run #2's executor also
+    // stays pending so run #2 keeps running (running=true) after one action.
+    let resolveOldExec: (v: { success: boolean }) => void = () => {};
+    let execCall = 0;
+    vi.spyOn(executor, 'run').mockImplementation(() => {
+      execCall += 1;
+      if (execCall === 1) {
+        return new Promise<{ success: boolean }>(r => {
+          resolveOldExec = r;
+        });
+      }
+      return new Promise<{ success: boolean }>(() => {});
+    });
+    vi.spyOn(gemini, 'nextAction').mockResolvedValue({
+      done: false,
+      thought: 'tıkla',
+      action: clickAction,
+    });
+
+    render(<AgentLoopPanel ip="1.2.3.4" token="tok" onToast={vi.fn()} />);
+    startWithGoal('döngü');
+
+    // Run #1 reached execution and is now suspended awaiting the deferred exec.
+    await screen.findByText(/MOUSE_CLICK/);
+
+    // Stop run #1, then restart -> run #2 begins and is actively looping.
+    fireEvent.click(screen.getByRole('button', { name: /Durdur/i }));
+    startWithGoal('döngü');
+    await waitFor(() => expect(gemini.nextAction).toHaveBeenCalledTimes(2));
+
+    // The OLD run's executor resolves late. Its finally { setRunning(false) }
+    // must NOT fire for the superseded run, or it would strip run #2's STOP.
+    await act(async () => {
+      resolveOldExec({ success: true });
+      await Promise.resolve();
+    });
+
+    // Run #2 is still active: the Durdur (STOP) button must remain present.
+    expect(screen.getByRole('button', { name: /Durdur/i })).toBeTruthy();
   });
 });
