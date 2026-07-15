@@ -456,4 +456,113 @@ describe('AgentLoopPanel', () => {
     await waitFor(() => expect(storedRuns()).toHaveLength(2));
     expect(storedRuns()[0].goal).toBe('kedi ara');
   });
+
+  it('holds the loop when Duraklat is pressed and shows Devam', async () => {
+    // Each executor call is a fresh pending promise we resolve on demand.
+    let resolveExec: (v: { success: boolean }) => void = () => {};
+    vi.spyOn(executor, 'run').mockImplementation(
+      () => new Promise<{ success: boolean }>(r => { resolveExec = r; })
+    );
+    vi.spyOn(gemini, 'nextAction').mockResolvedValue({
+      done: false,
+      thought: 'tıkla',
+      action: clickAction,
+    });
+
+    render(<AgentLoopPanel ip="1.2.3.4" token="tok" onToast={vi.fn()} />);
+    startWithGoal('döngü');
+
+    // Step 0 reached execution; pause now so the loop parks at the next step top.
+    await screen.findByText(/MOUSE_CLICK/);
+    fireEvent.click(screen.getByRole('button', { name: /Duraklat/i }));
+    // Devam (Resume) is shown immediately.
+    expect(screen.getByRole('button', { name: /Devam/i })).toBeTruthy();
+    // Finish step 0; the loop must then park at the barrier, not request step 1.
+    resolveExec({ success: true });
+    await new Promise(r => setTimeout(r, 0));
+    await Promise.resolve();
+    expect(gemini.nextAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('continues the loop when Devam is pressed', async () => {
+    let resolveExec: (v: { success: boolean }) => void = () => {};
+    vi.spyOn(executor, 'run').mockImplementation(
+      () => new Promise<{ success: boolean }>(r => { resolveExec = r; })
+    );
+    vi.spyOn(gemini, 'nextAction').mockResolvedValue({
+      done: false,
+      thought: 'tıkla',
+      action: clickAction,
+    });
+
+    render(<AgentLoopPanel ip="1.2.3.4" token="tok" onToast={vi.fn()} />);
+    startWithGoal('döngü');
+
+    await screen.findByText(/MOUSE_CLICK/);
+    fireEvent.click(screen.getByRole('button', { name: /Duraklat/i }));
+    resolveExec({ success: true });
+    await new Promise(r => setTimeout(r, 0));
+    expect(gemini.nextAction).toHaveBeenCalledTimes(1);
+
+    // Resume -> the loop leaves the barrier and requests the next action.
+    fireEvent.click(screen.getByRole('button', { name: /Devam/i }));
+    await waitFor(() => expect(gemini.nextAction).toHaveBeenCalledTimes(2));
+    // Back to the running control set.
+    expect(screen.getByRole('button', { name: /Duraklat/i })).toBeTruthy();
+  });
+
+  it('records a stopped run and returns to Başlat when STOP is pressed while paused', async () => {
+    let resolveExec: (v: { success: boolean }) => void = () => {};
+    vi.spyOn(executor, 'run').mockImplementation(
+      () => new Promise<{ success: boolean }>(r => { resolveExec = r; })
+    );
+    vi.spyOn(gemini, 'nextAction').mockResolvedValue({
+      done: false,
+      thought: 'tıkla',
+      action: clickAction,
+    });
+
+    render(<AgentLoopPanel ip="1.2.3.4" token="tok" onToast={vi.fn()} />);
+    startWithGoal('döngü');
+
+    await screen.findByText(/MOUSE_CLICK/);
+    fireEvent.click(screen.getByRole('button', { name: /Duraklat/i }));
+    resolveExec({ success: true }); // step 0 completes; loop parks
+    await new Promise(r => setTimeout(r, 0));
+
+    // STOP while paused: the parked loop must unblock and end as 'stopped'.
+    fireEvent.click(screen.getByRole('button', { name: /Durdur/i }));
+    await waitFor(() => expect(storedRuns()).toHaveLength(1));
+    expect(storedRuns()[0].outcome).toBe('stopped');
+    expect(screen.getByRole('button', { name: /Başlat/i })).toBeTruthy();
+  });
+
+  it('cleanly restarts after a run is stopped while paused', async () => {
+    let resolveExec: (v: { success: boolean }) => void = () => {};
+    vi.spyOn(executor, 'run').mockImplementation(
+      () => new Promise<{ success: boolean }>(r => { resolveExec = r; })
+    );
+    vi.spyOn(gemini, 'nextAction').mockResolvedValue({
+      done: false,
+      thought: 'tıkla',
+      action: clickAction,
+    });
+
+    render(<AgentLoopPanel ip="1.2.3.4" token="tok" onToast={vi.fn()} />);
+    startWithGoal('döngü');
+
+    await screen.findByText(/MOUSE_CLICK/);
+    fireEvent.click(screen.getByRole('button', { name: /Duraklat/i }));
+    resolveExec({ success: true });
+    await new Promise(r => setTimeout(r, 0));
+    fireEvent.click(screen.getByRole('button', { name: /Durdur/i }));
+    await waitFor(() => expect(storedRuns()).toHaveLength(1));
+
+    // A fresh run starts cleanly (not paused) and requests actions again.
+    startWithGoal('döngü');
+    await waitFor(() => expect(gemini.nextAction).toHaveBeenCalledTimes(2));
+    // The new run shows the running (Duraklat) control, not Devam.
+    expect(screen.getByRole('button', { name: /Duraklat/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Devam/i })).toBeNull();
+  });
 });
