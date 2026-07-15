@@ -565,4 +565,102 @@ describe('AgentLoopPanel', () => {
     expect(screen.getByRole('button', { name: /Duraklat/i })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Devam/i })).toBeNull();
   });
+
+  function enableApproval() {
+    fireEvent.click(screen.getByRole('checkbox', { name: /Onay modu/i }));
+  }
+
+  it('auto-executes when approval mode is off', async () => {
+    vi.spyOn(gemini, 'nextAction')
+      .mockResolvedValueOnce({ done: false, thought: 'tıkla', action: clickAction })
+      .mockResolvedValueOnce({ done: true, summary: 'bitti' });
+    const runSpy = vi.spyOn(executor, 'run').mockResolvedValue({ success: true });
+
+    render(<AgentLoopPanel ip="1.2.3.4" token="tok" onToast={vi.fn()} />);
+    startWithGoal('kedi ara');
+
+    await waitFor(() => expect(runSpy).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole('button', { name: /Onayla/i })).toBeNull();
+  });
+
+  it('parks at the gate before executing when approval mode is on', async () => {
+    vi.spyOn(gemini, 'nextAction').mockResolvedValue({ done: false, thought: 'tıkla', action: clickAction });
+    const runSpy = vi.spyOn(executor, 'run').mockResolvedValue({ success: true });
+
+    render(<AgentLoopPanel ip="1.2.3.4" token="tok" onToast={vi.fn()} />);
+    enableApproval();
+    startWithGoal('kedi ara');
+
+    await screen.findByRole('button', { name: /Onayla/i });
+    expect(runSpy).not.toHaveBeenCalled();
+  });
+
+  it('executes the original value on Onayla', async () => {
+    vi.spyOn(gemini, 'nextAction')
+      .mockResolvedValueOnce({ done: false, thought: 'tıkla', action: clickAction })
+      .mockResolvedValueOnce({ done: true, summary: 'bitti' });
+    const runSpy = vi.spyOn(executor, 'run').mockResolvedValue({ success: true });
+
+    render(<AgentLoopPanel ip="1.2.3.4" token="tok" onToast={vi.fn()} />);
+    enableApproval();
+    startWithGoal('kedi ara');
+
+    fireEvent.click(await screen.findByRole('button', { name: /Onayla/i }));
+    await waitFor(() => expect(runSpy).toHaveBeenCalledTimes(1));
+    expect(runSpy.mock.calls[0][0][0].value).toBe('10%,10%');
+  });
+
+  it('executes and records the edited value on Onayla', async () => {
+    vi.spyOn(gemini, 'nextAction')
+      .mockResolvedValueOnce({ done: false, thought: 'tıkla', action: clickAction })
+      .mockResolvedValueOnce({ done: true, summary: 'bitti' });
+    const runSpy = vi.spyOn(executor, 'run').mockResolvedValue({ success: true });
+
+    render(<AgentLoopPanel ip="1.2.3.4" token="tok" onToast={vi.fn()} />);
+    enableApproval();
+    startWithGoal('kedi ara');
+
+    await screen.findByRole('button', { name: /Onayla/i });
+    fireEvent.change(screen.getByLabelText('Adım değeri'), { target: { value: '50%,50%' } });
+    fireEvent.click(screen.getByRole('button', { name: /Onayla/i }));
+
+    await waitFor(() => expect(runSpy).toHaveBeenCalledTimes(1));
+    expect(runSpy.mock.calls[0][0][0].value).toBe('50%,50%');
+    await waitFor(() => expect(storedRuns()).toHaveLength(1));
+    expect(storedRuns()[0].steps[0].label).toBe('MOUSE_CLICK: 50%,50%');
+  });
+
+  it('skips a step without executing and records it as skipped', async () => {
+    vi.spyOn(gemini, 'nextAction')
+      .mockResolvedValueOnce({ done: false, thought: 'tıkla', action: clickAction })
+      .mockResolvedValueOnce({ done: true, summary: 'bitti' });
+    const runSpy = vi.spyOn(executor, 'run').mockResolvedValue({ success: true });
+
+    render(<AgentLoopPanel ip="1.2.3.4" token="tok" onToast={vi.fn()} />);
+    enableApproval();
+    startWithGoal('kedi ara');
+
+    fireEvent.click(await screen.findByRole('button', { name: /Atla/i }));
+
+    await waitFor(() => expect(gemini.nextAction).toHaveBeenCalledTimes(2));
+    expect(runSpy).not.toHaveBeenCalled();
+    await waitFor(() => expect(storedRuns()).toHaveLength(1));
+    expect(storedRuns()[0].steps[0].status).toBe('skipped');
+  });
+
+  it('ends the run as stopped when STOP is pressed at the gate', async () => {
+    vi.spyOn(gemini, 'nextAction').mockResolvedValue({ done: false, thought: 'tıkla', action: clickAction });
+    vi.spyOn(executor, 'run').mockResolvedValue({ success: true });
+
+    render(<AgentLoopPanel ip="1.2.3.4" token="tok" onToast={vi.fn()} />);
+    enableApproval();
+    startWithGoal('kedi ara');
+
+    await screen.findByRole('button', { name: /Onayla/i });
+    fireEvent.click(screen.getByRole('button', { name: /Durdur/i }));
+
+    await waitFor(() => expect(storedRuns()).toHaveLength(1));
+    expect(storedRuns()[0].outcome).toBe('stopped');
+    expect(screen.getByRole('button', { name: /Başlat/i })).toBeTruthy();
+  });
 });

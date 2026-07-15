@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Bot, Play, Square, Pause, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { Bot, Play, Square, Pause, Check, SkipForward, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { nextAction } from '../services/gemini';
 import { executor } from '../services/automation';
 import HudPanel from './hud/HudPanel';
@@ -15,7 +15,8 @@ interface AgentLoopPanelProps {
   onToast: (message: string, type?: ToastType) => void;
 }
 
-type StepStatus = 'running' | 'done' | 'failed';
+type StepStatus = 'running' | 'done' | 'failed' | 'skipped';
+type Decision = { kind: 'confirm'; value: string } | { kind: 'skip' };
 
 interface LogRow {
   thought: string;
@@ -41,6 +42,11 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
   const [paused, setPaused] = useState(false);
   const pauseRef = useRef(false);
   const resumeRef = useRef<(() => void) | null>(null);
+  const [approval, setApproval] = useState(false);
+  const approvalRef = useRef(false);
+  const [pendingAction, setPendingAction] = useState<{ type: string; value: string; description: string } | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const decisionRef = useRef<((d: Decision) => void) | null>(null);
   const { runs, addRun, clearRuns } = useAgentRuns();
 
   const handleStart = async (goalArg?: string) => {
@@ -49,6 +55,8 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
     stopRef.current = false;
     pauseRef.current = false;
     setPaused(false);
+    setPendingAction(null);
+    decisionRef.current = null;
     const myRunId = ++runIdRef.current;
     const stale = () => runIdRef.current !== myRunId;
     const waitWhilePaused = async () => {
@@ -82,6 +90,24 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
         const label = `${action.type}: ${action.value}`;
         recorded.push({ thought: res.thought || '', label, status: 'failed' });
         setLog(prev => [...prev, { thought: res.thought || '', label, status: 'running', image: res.image }]);
+        if (approvalRef.current) {
+          setPendingAction({ type: action.type, value: action.value, description: action.description });
+          setEditValue(action.value);
+          const decision = await new Promise<Decision>(resolve => { decisionRef.current = resolve; });
+          setPendingAction(null);
+          decisionRef.current = null;
+          if (stopRef.current || stale()) { outcome = 'stopped'; break; }
+          if (decision.kind === 'skip') {
+            setLog(prev => markLast(prev, 'skipped'));
+            recorded[recorded.length - 1].status = 'skipped';
+            history.push({ type: action.type, description: action.description });
+            continue;
+          }
+          action.value = decision.value;
+          const editedLabel = `${action.type}: ${action.value}`;
+          recorded[recorded.length - 1].label = editedLabel;
+          setLog(prev => prev.map((r, i) => (i === prev.length - 1 ? { ...r, label: editedLabel } : r)));
+        }
         const exec = await executor.run([action], ip, token);
         if (stale()) break;
         if (!exec.success) {
@@ -126,6 +152,8 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
     setPaused(false);
     resumeRef.current?.();
     resumeRef.current = null;
+    decisionRef.current?.({ kind: 'skip' });
+    decisionRef.current = null;
     setRunning(false);
   };
 
@@ -139,6 +167,22 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
     setPaused(false);
     resumeRef.current?.();
     resumeRef.current = null;
+  };
+
+  const handleConfirm = (value: string) => {
+    decisionRef.current?.({ kind: 'confirm', value });
+    decisionRef.current = null;
+  };
+
+  const handleSkip = () => {
+    decisionRef.current?.({ kind: 'skip' });
+    decisionRef.current = null;
+  };
+
+  const toggleApproval = () => {
+    const next = !approvalRef.current;
+    approvalRef.current = next;
+    setApproval(next);
   };
 
   const handleReplay = (savedGoal: string) => {
@@ -205,6 +249,16 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
         )}
       </div>
 
+      <label className="flex items-center gap-2 text-[11px] text-slate-400 select-none cursor-pointer">
+        <input
+          type="checkbox"
+          checked={approval}
+          onChange={toggleApproval}
+          className="accent-hud-cyan"
+        />
+        Onay modu
+      </label>
+
       {log.length > 0 && (
         <ol className="space-y-1.5">
           {log.map((row, i) => (
@@ -229,6 +283,7 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
               {row.status === 'running' && <Loader2 size={13} className="animate-spin text-hud-cyan shrink-0 mt-0.5" />}
               {row.status === 'done' && <CheckCircle2 size={13} className="text-hud-cyan shrink-0 mt-0.5" />}
               {row.status === 'failed' && <XCircle size={13} className="text-red-500 shrink-0 mt-0.5" />}
+              {row.status === 'skipped' && <SkipForward size={13} className="text-slate-500 shrink-0 mt-0.5" />}
               <span className="flex-1">
                 <span className="text-slate-400">{row.thought}</span>
                 <span className="block text-slate-600">{row.label}</span>
@@ -236,6 +291,35 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
             </li>
           ))}
         </ol>
+      )}
+
+      {pendingAction && (
+        <div className="space-y-2 border border-hud-cyan/40 rounded-sm p-3 bg-hud-bg/60">
+          <div className="text-[11px] text-slate-400">{pendingAction.description}</div>
+          <div className="text-[10px] text-slate-600 font-data">{pendingAction.type}</div>
+          <input
+            aria-label="Adım değeri"
+            className="w-full bg-hud-bg/80 border border-hud-dim rounded-sm font-data p-2 text-sm outline-none focus:border-hud-cyan/60"
+            value={editValue}
+            onChange={e => setEditValue(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleConfirm(editValue)}
+              className="flex-1 px-3 py-2 bg-hud-cyan text-slate-950 font-black rounded-sm flex items-center justify-center gap-2 active:scale-95 transition-all"
+            >
+              <Check size={14} />
+              Onayla
+            </button>
+            <button
+              onClick={handleSkip}
+              className="flex-1 px-3 py-2 bg-slate-600 text-slate-100 font-bold rounded-sm flex items-center justify-center gap-2 active:scale-95 transition-all"
+            >
+              <SkipForward size={14} />
+              Atla
+            </button>
+          </div>
+        </div>
       )}
 
       <AgentRunHistory runs={runs} running={running} onReplay={handleReplay} onClear={clearRuns} />
