@@ -30,6 +30,13 @@ describe('AgentLoopPanel', () => {
     description: 'Bir yere tıkla',
   };
 
+  const typeAction = {
+    id: '1',
+    type: 'TYPE_TEXT',
+    value: 'merhaba',
+    description: 'Metin yaz',
+  };
+
   it('runs the loop until done and toasts the summary', async () => {
     vi.spyOn(gemini, 'nextAction')
       .mockResolvedValueOnce({ done: false, thought: 'tıkla', action: clickAction })
@@ -584,7 +591,7 @@ describe('AgentLoopPanel', () => {
   });
 
   it('parks at the gate before executing when approval mode is on', async () => {
-    vi.spyOn(gemini, 'nextAction').mockResolvedValue({ done: false, thought: 'tıkla', action: clickAction });
+    vi.spyOn(gemini, 'nextAction').mockResolvedValue({ done: false, thought: 'yaz', action: typeAction });
     const runSpy = vi.spyOn(executor, 'run').mockResolvedValue({ success: true });
 
     render(<AgentLoopPanel ip="1.2.3.4" token="tok" onToast={vi.fn()} />);
@@ -597,7 +604,7 @@ describe('AgentLoopPanel', () => {
 
   it('executes the original value on Onayla', async () => {
     vi.spyOn(gemini, 'nextAction')
-      .mockResolvedValueOnce({ done: false, thought: 'tıkla', action: clickAction })
+      .mockResolvedValueOnce({ done: false, thought: 'yaz', action: typeAction })
       .mockResolvedValueOnce({ done: true, summary: 'bitti' });
     const runSpy = vi.spyOn(executor, 'run').mockResolvedValue({ success: true });
 
@@ -607,12 +614,12 @@ describe('AgentLoopPanel', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /Onayla/i }));
     await waitFor(() => expect(runSpy).toHaveBeenCalledTimes(1));
-    expect(runSpy.mock.calls[0][0][0].value).toBe('10%,10%');
+    expect(runSpy.mock.calls[0][0][0].value).toBe('merhaba');
   });
 
   it('executes and records the edited value on Onayla', async () => {
     vi.spyOn(gemini, 'nextAction')
-      .mockResolvedValueOnce({ done: false, thought: 'tıkla', action: clickAction })
+      .mockResolvedValueOnce({ done: false, thought: 'yaz', action: typeAction })
       .mockResolvedValueOnce({ done: true, summary: 'bitti' });
     const runSpy = vi.spyOn(executor, 'run').mockResolvedValue({ success: true });
 
@@ -627,12 +634,12 @@ describe('AgentLoopPanel', () => {
     await waitFor(() => expect(runSpy).toHaveBeenCalledTimes(1));
     expect(runSpy.mock.calls[0][0][0].value).toBe('50%,50%');
     await waitFor(() => expect(storedRuns()).toHaveLength(1));
-    expect(storedRuns()[0].steps[0].label).toBe('MOUSE_CLICK: 50%,50%');
+    expect(storedRuns()[0].steps[0].label).toBe('TYPE_TEXT: 50%,50%');
   });
 
   it('skips a step without executing and records it as skipped', async () => {
     vi.spyOn(gemini, 'nextAction')
-      .mockResolvedValueOnce({ done: false, thought: 'tıkla', action: clickAction })
+      .mockResolvedValueOnce({ done: false, thought: 'yaz', action: typeAction })
       .mockResolvedValueOnce({ done: true, summary: 'bitti' });
     const runSpy = vi.spyOn(executor, 'run').mockResolvedValue({ success: true });
 
@@ -649,7 +656,7 @@ describe('AgentLoopPanel', () => {
   });
 
   it('ends the run as stopped when STOP is pressed at the gate', async () => {
-    vi.spyOn(gemini, 'nextAction').mockResolvedValue({ done: false, thought: 'tıkla', action: clickAction });
+    vi.spyOn(gemini, 'nextAction').mockResolvedValue({ done: false, thought: 'yaz', action: typeAction });
     vi.spyOn(executor, 'run').mockResolvedValue({ success: true });
 
     render(<AgentLoopPanel ip="1.2.3.4" token="tok" onToast={vi.fn()} />);
@@ -662,5 +669,20 @@ describe('AgentLoopPanel', () => {
     await waitFor(() => expect(storedRuns()).toHaveLength(1));
     expect(storedRuns()[0].outcome).toBe('stopped');
     expect(screen.getByRole('button', { name: /Başlat/i })).toBeTruthy();
+  });
+
+  it('auto-runs a safe action even when approval mode is on', async () => {
+    vi.spyOn(gemini, 'nextAction')
+      .mockResolvedValueOnce({ done: false, thought: 'tıkla', action: clickAction })
+      .mockResolvedValueOnce({ done: true, summary: 'bitti' });
+    const runSpy = vi.spyOn(executor, 'run').mockResolvedValue({ success: true });
+
+    render(<AgentLoopPanel ip="1.2.3.4" token="tok" onToast={vi.fn()} />);
+    enableApproval();
+    startWithGoal('kedi ara');
+
+    await waitFor(() => expect(runSpy).toHaveBeenCalledTimes(1));
+    expect(runSpy.mock.calls[0][0][0].value).toBe('10%,10%');
+    expect(screen.queryByRole('button', { name: /Onayla/i })).toBeNull();
   });
 });

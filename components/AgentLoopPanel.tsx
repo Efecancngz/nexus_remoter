@@ -26,6 +26,7 @@ interface LogRow {
 }
 
 const MAX_STEPS = 15;
+const RISKY_ACTION_TYPES = new Set(['TYPE_TEXT', 'KEYPRESS', 'HOTKEY', 'COMMAND', 'SYSTEM_POWER', 'CLOSE_APP']);
 
 function markLast(rows: LogRow[], status: StepStatus): LogRow[] {
   if (rows.length === 0) return rows;
@@ -90,7 +91,7 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
         const label = `${action.type}: ${action.value}`;
         recorded.push({ thought: res.thought || '', label, status: 'failed' });
         setLog(prev => [...prev, { thought: res.thought || '', label, status: 'running', image: res.image }]);
-        if (approvalRef.current) {
+        if (approvalRef.current && RISKY_ACTION_TYPES.has(action.type)) {
           setPendingAction({ type: action.type, value: action.value, description: action.description });
           setEditValue(action.value);
           const decision = await new Promise<Decision>(resolve => { decisionRef.current = resolve; });
