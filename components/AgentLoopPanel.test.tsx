@@ -225,4 +225,69 @@ describe('AgentLoopPanel', () => {
     // Run #2 is still active: the Durdur (STOP) button must remain present.
     expect(screen.getByRole('button', { name: /Durdur/i })).toBeTruthy();
   });
+
+  it('renders a thumbnail for a step that has a screenshot', async () => {
+    vi.spyOn(gemini, 'nextAction')
+      .mockResolvedValueOnce({
+        done: false,
+        thought: 'tıkla',
+        action: { id: '1', type: 'MOUSE_CLICK', value: '10%,10%', description: 'tıkla' },
+        image: 'data:image/jpeg;base64,STEPSHOT',
+      })
+      .mockResolvedValueOnce({ done: true, summary: 'bitti' });
+    vi.spyOn(executor, 'run').mockResolvedValue({ success: true });
+
+    render(<AgentLoopPanel ip="1.2.3.4" token="tok" onToast={vi.fn()} />);
+    const input = screen.getByPlaceholderText(/Hedef/i);
+    fireEvent.change(input, { target: { value: 'kedi ara' } });
+    fireEvent.click(screen.getByRole('button', { name: /Başlat/i }));
+
+    const thumb = await screen.findByTestId('step-thumbnail');
+    const img = thumb.querySelector('img')!;
+    expect(img.getAttribute('src')).toBe('data:image/jpeg;base64,STEPSHOT');
+  });
+
+  it('opens the full-screen ScreenshotModal when the thumbnail is tapped', async () => {
+    vi.spyOn(gemini, 'nextAction')
+      .mockResolvedValueOnce({
+        done: false,
+        thought: 'tıkla',
+        action: { id: '1', type: 'MOUSE_CLICK', value: '10%,10%', description: 'tıkla' },
+        image: 'data:image/jpeg;base64,STEPSHOT',
+      })
+      .mockResolvedValueOnce({ done: true, summary: 'bitti' });
+    vi.spyOn(executor, 'run').mockResolvedValue({ success: true });
+
+    render(<AgentLoopPanel ip="1.2.3.4" token="tok" onToast={vi.fn()} />);
+    const input = screen.getByPlaceholderText(/Hedef/i);
+    fireEvent.change(input, { target: { value: 'kedi ara' } });
+    fireEvent.click(screen.getByRole('button', { name: /Başlat/i }));
+
+    fireEvent.click(await screen.findByTestId('step-thumbnail'));
+
+    // ScreenshotModal renders its own "Kapat" close button and an <img alt="Ekran görüntüsü">.
+    expect(await screen.findByRole('button', { name: 'Kapat' })).toBeTruthy();
+    expect(screen.getByAltText('Ekran görüntüsü').getAttribute('src')).toBe(
+      'data:image/jpeg;base64,STEPSHOT'
+    );
+  });
+
+  it('renders no thumbnail for a step without a screenshot', async () => {
+    vi.spyOn(gemini, 'nextAction')
+      .mockResolvedValueOnce({
+        done: false,
+        thought: 'tıkla',
+        action: { id: '1', type: 'MOUSE_CLICK', value: '10%,10%', description: 'tıkla' },
+      })
+      .mockResolvedValueOnce({ done: true, summary: 'bitti' });
+    vi.spyOn(executor, 'run').mockResolvedValue({ success: true });
+
+    render(<AgentLoopPanel ip="1.2.3.4" token="tok" onToast={vi.fn()} />);
+    const input = screen.getByPlaceholderText(/Hedef/i);
+    fireEvent.change(input, { target: { value: 'kedi ara' } });
+    fireEvent.click(screen.getByRole('button', { name: /Başlat/i }));
+
+    await waitFor(() => expect(gemini.nextAction).toHaveBeenCalledTimes(2));
+    expect(screen.queryByTestId('step-thumbnail')).toBeNull();
+  });
 });

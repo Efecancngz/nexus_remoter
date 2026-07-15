@@ -3,6 +3,7 @@ import { Bot, Play, Square, Loader2, CheckCircle2, XCircle } from 'lucide-react'
 import { nextAction } from '../services/gemini';
 import { executor } from '../services/automation';
 import HudPanel from './hud/HudPanel';
+import { ScreenshotModal } from './ScreenshotModal';
 
 type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -18,6 +19,7 @@ interface LogRow {
   thought: string;
   label: string;
   status: StepStatus;
+  image?: string;
 }
 
 const MAX_STEPS = 15;
@@ -31,6 +33,7 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
   const [goal, setGoal] = useState('');
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<LogRow[]>([]);
+  const [preview, setPreview] = useState<string | null>(null);
   const stopRef = useRef(false);
   const runIdRef = useRef(0);
 
@@ -54,7 +57,7 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
         if (stopRef.current || stale()) break;
         const action = res.action!;
         const label = `${action.type}: ${action.value}`;
-        setLog(prev => [...prev, { thought: res.thought || '', label, status: 'running' }]);
+        setLog(prev => [...prev, { thought: res.thought || '', label, status: 'running', image: res.image }]);
         const exec = await executor.run([action], ip, token);
         if (stale()) break;
         if (!exec.success) {
@@ -124,6 +127,20 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
           {log.map((row, i) => (
             <li key={i} className="flex items-start gap-2 text-[11px] font-data text-slate-300">
               <span className="text-slate-600 w-8 shrink-0">{i + 1}/{MAX_STEPS}</span>
+              {row.image && (
+                <button
+                  type="button"
+                  data-testid="step-thumbnail"
+                  onClick={() => setPreview(row.image!)}
+                  className="shrink-0 active:scale-95 transition-transform"
+                >
+                  <img
+                    src={row.image}
+                    alt="Adım görüntüsü"
+                    className="w-16 h-10 object-cover rounded-sm border border-hud-dim"
+                  />
+                </button>
+              )}
               {row.status === 'running' && <Loader2 size={13} className="animate-spin text-hud-cyan shrink-0 mt-0.5" />}
               {row.status === 'done' && <CheckCircle2 size={13} className="text-hud-cyan shrink-0 mt-0.5" />}
               {row.status === 'failed' && <XCircle size={13} className="text-red-500 shrink-0 mt-0.5" />}
@@ -135,6 +152,8 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
           ))}
         </ol>
       )}
+
+      {preview && <ScreenshotModal dataUrl={preview} onClose={() => setPreview(null)} />}
     </HudPanel>
   );
 }
