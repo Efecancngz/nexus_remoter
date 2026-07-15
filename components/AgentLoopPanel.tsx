@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Bot, Play, Square, Pause, Check, SkipForward, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { nextAction } from '../services/gemini';
 import { executor } from '../services/automation';
@@ -6,6 +6,7 @@ import HudPanel from './hud/HudPanel';
 import { ScreenshotModal } from './ScreenshotModal';
 import { useAgentRuns, RunOutcome, AgentRunStep } from '../hooks/useAgentRuns';
 import AgentRunHistory from './AgentRunHistory';
+import { saveRunImages, loadRunImages, reconcileRunImages } from '../services/runImages';
 
 type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -50,6 +51,8 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
   const decisionRef = useRef<((d: Decision) => void) | null>(null);
   const { runs, addRun, clearRuns } = useAgentRuns();
 
+  useEffect(() => { void reconcileRunImages(runs.map(r => r.id)); }, [runs]);
+
   const handleStart = async (goalArg?: string) => {
     const value = (goalArg ?? goal).trim();
     if (!value || running) return;
@@ -70,7 +73,9 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
     setLog([]);
     setPreview(null);
     const startedAt = Date.now();
+    const runId = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2, 11);
     const recorded: AgentRunStep[] = [];
+    const images: (string | null)[] = [];
     let outcome: RunOutcome = 'stopped';
     let detail: string | undefined;
     const history: { type: string; description: string }[] = [];
@@ -90,6 +95,7 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
         const action = res.action!;
         const label = `${action.type}: ${action.value}`;
         recorded.push({ thought: res.thought || '', label, status: 'failed' });
+        images.push(res.image ?? null);
         setLog(prev => [...prev, { thought: res.thought || '', label, status: 'running', image: res.image }]);
         if (approvalRef.current && RISKY_ACTION_TYPES.has(action.type)) {
           setPendingAction({ type: action.type, value: action.value, description: action.description });
@@ -135,13 +141,14 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
         setRunning(false);
         if (recorded.length > 0) {
           addRun({
-            id: globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2, 11),
+            id: runId,
             goal: value,
             startedAt,
             outcome,
             detail,
             steps: recorded,
           });
+          void saveRunImages(runId, images);
         }
       }
     }
@@ -323,7 +330,7 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
         </div>
       )}
 
-      <AgentRunHistory runs={runs} running={running} onReplay={handleReplay} onClear={clearRuns} />
+      <AgentRunHistory runs={runs} running={running} onReplay={handleReplay} onClear={clearRuns} loadImages={loadRunImages} />
 
       {preview && <ScreenshotModal dataUrl={preview} onClose={() => setPreview(null)} />}
     </HudPanel>

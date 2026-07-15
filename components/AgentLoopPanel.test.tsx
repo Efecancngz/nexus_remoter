@@ -6,6 +6,13 @@ import * as gemini from '../services/gemini';
 import { executor } from '../services/automation';
 import { AGENT_RUNS_KEY, AgentRun } from '../hooks/useAgentRuns';
 
+vi.mock('../services/runImages', () => ({
+  saveRunImages: vi.fn(() => Promise.resolve()),
+  loadRunImages: vi.fn(() => Promise.resolve(null)),
+  reconcileRunImages: vi.fn(() => Promise.resolve()),
+}));
+import { saveRunImages, reconcileRunImages } from '../services/runImages';
+
 describe('AgentLoopPanel', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -684,5 +691,37 @@ describe('AgentLoopPanel', () => {
     await waitFor(() => expect(runSpy).toHaveBeenCalledTimes(1));
     expect(runSpy.mock.calls[0][0][0].value).toBe('10%,10%');
     expect(screen.queryByRole('button', { name: /Onayla/i })).toBeNull();
+  });
+
+  it('saves step screenshots to the image store for a completed run', async () => {
+    vi.spyOn(gemini, 'nextAction')
+      .mockResolvedValueOnce({ done: false, thought: 'tıkla', action: clickAction, image: 'data:image/jpeg;base64,SHOT' })
+      .mockResolvedValueOnce({ done: true, summary: 'bitti' });
+    vi.spyOn(executor, 'run').mockResolvedValue({ success: true });
+
+    render(<AgentLoopPanel ip="1.2.3.4" token="tok" onToast={vi.fn()} />);
+    startWithGoal('kedi ara');
+
+    await waitFor(() => expect(storedRuns()).toHaveLength(1));
+    const runId = storedRuns()[0].id;
+    await waitFor(() =>
+      expect(saveRunImages).toHaveBeenCalledWith(runId, expect.arrayContaining(['data:image/jpeg;base64,SHOT']))
+    );
+  });
+
+  it('reconciles the image store with the current run ids', async () => {
+    vi.spyOn(gemini, 'nextAction')
+      .mockResolvedValueOnce({ done: false, thought: 'tıkla', action: clickAction, image: 'data:image/jpeg;base64,SHOT' })
+      .mockResolvedValueOnce({ done: true, summary: 'bitti' });
+    vi.spyOn(executor, 'run').mockResolvedValue({ success: true });
+
+    render(<AgentLoopPanel ip="1.2.3.4" token="tok" onToast={vi.fn()} />);
+    startWithGoal('kedi ara');
+
+    await waitFor(() => expect(storedRuns()).toHaveLength(1));
+    const runId = storedRuns()[0].id;
+    await waitFor(() =>
+      expect(reconcileRunImages).toHaveBeenCalledWith(expect.arrayContaining([runId]))
+    );
   });
 });
