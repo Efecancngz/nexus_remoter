@@ -260,5 +260,33 @@ describe('gemini service (agent /ai/* proxy client)', () => {
 
       await expect(nextAction('1.2.3.4', 'bad-tok', 'x', [])).rejects.toThrow('AUTH_REQUIRED');
     });
+
+    it('surfaces the step screenshot on a not-done response', async () => {
+      const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+      fetchMock.mockResolvedValue(
+        jsonResponse(200, {
+          success: true,
+          done: false,
+          thought: 'tıkla',
+          action: { type: 'MOUSE_CLICK', value: '50%,8%', description: 'tıkla' },
+          image: 'data:image/jpeg;base64,abc',
+        })
+      );
+
+      const result = await nextAction('1.2.3.4', 'tok', 'x', []);
+
+      expect(result.image).toBe('data:image/jpeg;base64,abc');
+    });
+
+    it('has no image on a done response', async () => {
+      const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+      fetchMock.mockResolvedValue(
+        jsonResponse(200, { success: true, done: true, summary: 'bitti' })
+      );
+
+      const result = await nextAction('1.2.3.4', 'tok', 'x', []);
+
+      expect(result.image).toBeUndefined();
+    });
   });
 });

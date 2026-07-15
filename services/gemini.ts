@@ -85,7 +85,7 @@ export const nextAction = async (
   token: string,
   goal: string,
   history: { type: string; description: string }[]
-): Promise<{ done: boolean; thought?: string; action?: AutomationStep; summary?: string }> => {
+): Promise<{ done: boolean; thought?: string; action?: AutomationStep; summary?: string; image?: string }> => {
   const data = await callAgent('/ai/next-action', ip, token, { goal, history });
   if (data.done) {
     return { done: true, summary: data.summary };
@@ -100,5 +100,6 @@ export const nextAction = async (
       value: a.value,
       description: a.description,
     },
+    image: data.image,
   };
 };
