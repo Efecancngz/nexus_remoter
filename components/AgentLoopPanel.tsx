@@ -45,6 +45,7 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
     const stale = () => runIdRef.current !== myRunId;
     setRunning(true);
     setLog([]);
+    setPreview(null);
     const history: { type: string; description: string }[] = [];
     try {
       for (let step = 0; step < MAX_STEPS; step++) {
@@ -138,6 +139,8 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
                     src={row.image}
                     alt="Adım görüntüsü"
                     className="w-16 h-10 object-cover rounded-sm border border-hud-dim"
+                    loading="lazy"
+                    decoding="async"
                   />
                 </button>
               )}
