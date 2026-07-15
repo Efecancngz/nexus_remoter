@@ -74,6 +74,18 @@ def test_run_builds_history_across_steps():
     assert seen[1] == [{"type": "MOUSE_CLICK", "description": "tıkla"}]
 
 
+def test_run_records_failed_when_decide_raises():
+    store = FakeStore()
+    def decide(goal, history):
+        raise RuntimeError("Gemini patladı")
+    r = _runner(decide, execute=lambda a: None, store=store)
+    r._run("hedef", "rid")
+    assert store.runs, "a run record must be saved even when decide raises"
+    rec = store.runs[0]
+    assert rec["outcome"] == "failed"
+    assert rec["detail"] == "Gemini patladı"
+
+
 def test_start_returns_none_when_busy():
     r = _runner(decide=lambda g, h: {"done": True, "summary": "x"}, execute=lambda a: None)
     r._busy = True

@@ -38,12 +38,17 @@ class GoalRunner:
         detail = None
         try:
             for step in range(self._max_steps):
-                decision = self._decide(goal, history)
-                if decision.get("done"):
-                    outcome = "completed"
-                    detail = decision.get("summary")
+                try:
+                    decision = self._decide(goal, history)
+                    if decision.get("done"):
+                        outcome = "completed"
+                        detail = decision.get("summary")
+                        break
+                    action = decision["action"]
+                except Exception as e:
+                    outcome = "failed"
+                    detail = str(e)
                     break
-                action = decision["action"]
                 record = {
                     "type": action.get("type"),
                     "value": action.get("value"),
