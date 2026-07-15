@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Bot, Play, Square, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { Bot, Play, Square, Pause, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { nextAction } from '../services/gemini';
 import { executor } from '../services/automation';
 import HudPanel from './hud/HudPanel';
@@ -38,14 +38,25 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
   const [preview, setPreview] = useState<string | null>(null);
   const stopRef = useRef(false);
   const runIdRef = useRef(0);
+  const [paused, setPaused] = useState(false);
+  const pauseRef = useRef(false);
+  const resumeRef = useRef<(() => void) | null>(null);
   const { runs, addRun, clearRuns } = useAgentRuns();
 
   const handleStart = async (goalArg?: string) => {
     const value = (goalArg ?? goal).trim();
     if (!value || running) return;
     stopRef.current = false;
+    pauseRef.current = false;
+    setPaused(false);
     const myRunId = ++runIdRef.current;
     const stale = () => runIdRef.current !== myRunId;
+    const waitWhilePaused = async () => {
+      while (pauseRef.current && !stopRef.current && !stale()) {
+        await new Promise<void>(resolve => { resumeRef.current = resolve; });
+      }
+      resumeRef.current = null;
+    };
     setRunning(true);
     setLog([]);
     setPreview(null);
@@ -56,6 +67,8 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
     const history: { type: string; description: string }[] = [];
     try {
       for (let step = 0; step < MAX_STEPS; step++) {
+        if (stopRef.current || stale()) { outcome = 'stopped'; break; }
+        await waitWhilePaused();
         if (stopRef.current || stale()) { outcome = 'stopped'; break; }
         const res = await nextAction(ip, token, value, history);
         if (res.done) {
@@ -109,7 +122,23 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
 
   const handleStop = () => {
     stopRef.current = true;
+    pauseRef.current = false;
+    setPaused(false);
+    resumeRef.current?.();
+    resumeRef.current = null;
     setRunning(false);
+  };
+
+  const handlePause = () => {
+    pauseRef.current = true;
+    setPaused(true);
+  };
+
+  const handleResume = () => {
+    pauseRef.current = false;
+    setPaused(false);
+    resumeRef.current?.();
+    resumeRef.current = null;
   };
 
   const handleReplay = (savedGoal: string) => {
@@ -137,15 +166,7 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
           onKeyDown={e => { if (e.key === 'Enter') handleStart(); }}
           disabled={running}
         />
-        {running ? (
-          <button
-            onClick={handleStop}
-            className="px-5 bg-red-500 text-slate-950 font-black rounded-sm flex items-center gap-2 active:scale-95 transition-all"
-          >
-            <Square size={16} />
-            Durdur
-          </button>
-        ) : (
+        {!running ? (
           <button
             onClick={() => handleStart()}
             disabled={!goal.trim()}
@@ -154,6 +175,33 @@ export default function AgentLoopPanel({ ip, token, onToast }: AgentLoopPanelPro
             <Play size={16} />
             Başlat
           </button>
+        ) : (
+          <>
+            {paused ? (
+              <button
+                onClick={handleResume}
+                className="px-4 bg-hud-cyan text-slate-950 font-black rounded-sm flex items-center gap-2 active:scale-95 transition-all"
+              >
+                <Play size={16} />
+                Devam
+              </button>
+            ) : (
+              <button
+                onClick={handlePause}
+                className="px-4 bg-amber-400 text-slate-950 font-black rounded-sm flex items-center gap-2 active:scale-95 transition-all"
+              >
+                <Pause size={16} />
+                Duraklat
+              </button>
+            )}
+            <button
+              onClick={handleStop}
+              className="px-4 bg-red-500 text-slate-950 font-black rounded-sm flex items-center gap-2 active:scale-95 transition-all"
+            >
+              <Square size={16} />
+              Durdur
+            </button>
+          </>
         )}
       </div>
 
